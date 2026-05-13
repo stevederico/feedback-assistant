@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Search, Archive, Mail, MailOpen, Trash2, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { Search, Archive, Mail, MailOpen, Trash2, ExternalLink, Image as ImageIcon } from '@stevederico/skateboard-ui/icons';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
 import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';

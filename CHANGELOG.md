@@ -1,6 +1,8 @@
 3.1.2
 
+  Upgrade to skateboard 3.1.2
   Add LandingSpecSheet variant
+  Vendor lucide icons
 
 3.0.1
 

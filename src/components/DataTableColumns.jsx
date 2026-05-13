@@ -3,7 +3,7 @@ import {
   EllipsisVertical,
   GripVertical,
   Loader,
-} from "lucide-react"
+} from "@stevederico/skateboard-ui/icons"
 import { useSortable } from "@dnd-kit/sortable"
 import { toast } from "sonner"
 

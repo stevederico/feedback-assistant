@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Copy, KeyRound, Trash2 } from 'lucide-react';
+import { Plus, Copy, KeyRound, Trash2 } from '@stevederico/skateboard-ui/icons';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
 import { Label } from '@stevederico/skateboard-ui/shadcn/ui/label';

@@ -1,4 +1,4 @@
-import { TrendingUp } from "lucide-react"
+import { TrendingUp } from "@stevederico/skateboard-ui/icons"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 
 import { useIsMobile } from "@stevederico/skateboard-ui/shadcn/hooks/use-mobile"

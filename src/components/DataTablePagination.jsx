@@ -3,7 +3,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-} from "lucide-react"
+} from "@stevederico/skateboard-ui/icons"
 
 import { Button } from "@stevederico/skateboard-ui/shadcn/ui/button"
 import { Label } from "@stevederico/skateboard-ui/shadcn/ui/label"
