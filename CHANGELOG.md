@@ -1,3 +1,7 @@
+3.1.2
+
+  Add LandingSpecSheet variant
+
 3.0.1
 
   Bump skateboard-ui 3.0.1
