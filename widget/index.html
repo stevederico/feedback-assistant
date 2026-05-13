@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Feedback Assistant — Widget Test Page</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 720px;
+        margin: 4rem auto;
+        padding: 0 1.5rem;
+        color: #1f2937;
+        line-height: 1.6;
+      }
+      h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+      code {
+        background: #f3f4f6;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: #f3f4f6;
+        padding: 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Feedback Assistant — Widget Test Page</h1>
+    <p>The floating button should appear in the lower-right corner.</p>
+
+    <h2>How this page is wired</h2>
+    <pre>FeedbackAssistant.init({
+  projectKey: 'pk_test_local',
+  apiUrl: 'http://localhost:8000/v1',
+  appVersion: '0.1.0',
+});
+
+FeedbackAssistant.identify({
+  id: 'demo-user',
+  name: 'Demo User',
+  email: 'demo@example.com',
+});</pre>
+
+    <p>Submissions are sent to <code>POST /v1/submissions</code> on the feedback-assistant backend.</p>
+
+    <script type="module" src="/src/index.js"></script>
+    <script type="module">
+      import { FeedbackAssistant } from '/src/index.js';
+      FeedbackAssistant.init({
+        projectKey: 'pk_test_local',
+        apiUrl: 'http://localhost:8000/v1',
+        appVersion: '0.1.0',
+      });
+      FeedbackAssistant.identify({
+        id: 'demo-user',
+        name: 'Demo User',
+        email: 'demo@example.com',
+      });
+    </script>
+  </body>
+</html>

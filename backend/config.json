@@ -1,0 +1,8 @@
+{
+  "staticDir": "../dist",
+  "database": {
+    "db": "FeedbackAssistant",
+    "dbType": "sqlite",
+    "connectionString": "./databases/FeedbackAssistant.db"
+  }
+}
