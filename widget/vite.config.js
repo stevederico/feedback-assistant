@@ -14,7 +14,7 @@ export default defineConfig({
     },
     outDir: 'dist',
     emptyOutDir: true,
-    minify: 'terser',
+    minify: 'esbuild', // built-in; no extra dep, ~95% as small as terser
     cssCodeSplit: false,
   },
 });
