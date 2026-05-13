@@ -208,7 +208,7 @@ export default function ChangelogView() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 p-4 md:p-6">
       <Header title="Changelog">
         {projects && projects.length > 1 && (
           <ProjectPicker projects={projects} currentId={currentId} onChange={setCurrentId} />

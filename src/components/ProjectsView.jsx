@@ -61,7 +61,7 @@ export default function ProjectsView() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 p-4 md:p-6">
       <Header title="Projects">
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
