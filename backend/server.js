@@ -12,6 +12,9 @@ import crypto from "crypto";
 
 import { databaseManager } from "./adapters/manager.js";
 import { createWidgetApi } from "./widget-api.js";
+import { bootstrapFeedbackSchema } from "./feedback-schema.js";
+import { createFeedbackDashboardApi } from "./feedback-dashboard-api.js";
+import { ensureUploadsDir } from "./feedback-uploads.js";
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile, mkdir, stat, readFileSync, writeFileSync, statSync } from 'node:fs';
@@ -933,38 +936,35 @@ app.post("/api/signup", async (c) => {
 
     const hash = await hashPassword(password);
     let insertID = generateUUID()
+    const orgId = generateUUID();
+    const orgName = `${name}'s workspace`;
+    const now = Date.now();
 
     try {
-      // Insert user first
-      await db.insertUser({
-        _id: insertID,
-        email: email,
-        name: name,
-        created_at: Date.now()
-      });
-
-      // Insert auth record (compensating delete on failure)
+      // Wrap Org + User + Auth + org_id link in one SQLite transaction.
+      // node:sqlite shares the cached handle (rawDb) with the abstracted
+      // db.insertUser/insertAuth calls — same connection, so BEGIN covers all.
+      rawDb.exec('BEGIN');
       try {
-        await db.insertAuth({ email: email, password: hash, userID: insertID });
-      } catch (authError) {
-        // Rollback: delete the user we just created
-        logger.error('Auth insert failed, rolling back user creation', { error: authError.message });
-        try {
-          await db.executeQuery({ query: 'DELETE FROM Users WHERE _id = ?', params: [insertID] });
-        } catch (rollbackError) {
-          logger.error('Rollback failed - orphaned user record', { userID: insertID, error: rollbackError.message });
-        }
-        throw authError;
+        rawDb.prepare('INSERT INTO Orgs (id, name, created_at) VALUES (?, ?, ?)').run(orgId, orgName, now);
+        await db.insertUser({ _id: insertID, email, name, created_at: now });
+        rawDb.prepare('UPDATE Users SET org_id = ? WHERE _id = ?').run(orgId, insertID);
+        await db.insertAuth({ email, password: hash, userID: insertID });
+        rawDb.exec('COMMIT');
+      } catch (txErr) {
+        try { rawDb.exec('ROLLBACK'); } catch { /* ignore */ }
+        throw txErr;
       }
 
       const token = await generateToken(insertID);
       setAuthCookies(c, insertID, token);
-      logger.info('Signup success');
+      logger.info('Signup success', { userID: insertID, orgId });
 
       return c.json({
         id: insertID.toString(),
         email: email,
         name: name.trim(),
+        orgId,
         tokenExpires: tokenExpireTimestamp()
       }, 201);
     } catch (e) {
@@ -1307,8 +1307,34 @@ app.post("/api/portal", authMiddleware, csrfProtection, async (c) => {
   }
 });
 
+// ==== FEEDBACK-ASSISTANT SCHEMA BOOTSTRAP ====
+// Force DB initialization, then run our DDL (idempotent).
+let rawDb = null;
+try {
+  const { database } = await databaseManager.getDatabase(
+    currentDbConfig.dbType,
+    currentDbConfig.db,
+    currentDbConfig.connectionString
+  );
+  rawDb = database;
+  bootstrapFeedbackSchema(rawDb);
+  const uploadsDir = await ensureUploadsDir();
+  logger.info('Feedback Assistant schema ready', { uploadsDir });
+} catch (e) {
+  logger.error('Failed to bootstrap feedback schema', { error: e.message });
+  throw e;
+}
+
 // ==== WIDGET INGEST API (mounted at /v1) ====
-app.route('/v1', createWidgetApi({ logger }));
+app.route('/v1', createWidgetApi({ logger, db: rawDb }));
+
+// ==== FEEDBACK DASHBOARD API (mounted under /api) ====
+app.route('/api', createFeedbackDashboardApi({
+  db: rawDb,
+  authMiddleware,
+  csrfProtection,
+  logger,
+}));
 
 // ==== STATIC FILE SERVING (Production) ====
 const staticDir = resolve(__dirname, config.staticDir);

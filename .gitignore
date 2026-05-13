@@ -41,5 +41,8 @@ backend/.env
 *.db-shm
 *.db-wal
 
+# Uploaded screenshots (volume-backed in prod)
+backend/databases/uploads/
+
 MIGRATION_GUIDE-0.9.8.md
 SKATEBOARD_UI_EXTENSIONS_PROPOSAL.md
