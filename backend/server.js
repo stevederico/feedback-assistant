@@ -1336,6 +1336,31 @@ app.route('/api', createFeedbackDashboardApi({
   logger,
 }));
 
+// ==== WIDGET BUNDLE (served versioned, immutably cached) ====
+// Customers embed via <script src="https://<host>/widget/v0.1.0.js">. Each
+// version URL is immutable: the file lives at widget/dist/feedback-assistant.js
+// inside the container, but the public URL is pinned to a semver in package.json
+// so a customer pinning v0.1.0 keeps getting the same bytes forever (until they
+// upgrade). Add an SRI hash in the embed snippet after computing at deploy time.
+const widgetVersion = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8')).version;
+const widgetBundlePath = resolve(__dirname, '..', 'widget', 'dist', 'feedback-assistant.js');
+app.get(`/widget/v${widgetVersion}.js`, async (c) => {
+  try {
+    const buf = await promisify(readFile)(widgetBundlePath);
+    return new Response(buf, {
+      headers: {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'X-Content-Type-Options': 'nosniff',
+        // Wide-open: this script is meant to be embedded on any customer origin.
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  } catch {
+    return c.text('Widget bundle missing', 404);
+  }
+});
+
 // ==== STATIC FILE SERVING (Production) ====
 const staticDir = resolve(__dirname, config.staticDir);
 

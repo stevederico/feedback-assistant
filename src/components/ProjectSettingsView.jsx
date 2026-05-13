@@ -13,6 +13,7 @@ import Header from '@stevederico/skateboard-ui/Header';
 import { faApi } from '../util/api.js';
 import { useCurrentProject } from '../util/useCurrentProject.js';
 import ProjectPicker from './ProjectPicker.jsx';
+import packageJson from '../../package.json';
 
 function copyToClipboard(text) {
   navigator.clipboard?.writeText(text).then(
@@ -22,11 +23,14 @@ function copyToClipboard(text) {
 }
 
 // Embed snippet shown for a project. Uses dataset-key attribute the widget reads.
+// Points at the same host that serves the dashboard — works for any deploy
+// (Railway prod, custom domain, local dev). SRI hash will land once the build
+// pipeline can compute it post-build.
 function embedSnippet(publicKey) {
-  // We use a placeholder URL since we don't know the customer's hosted CDN yet;
-  // when widget shipping lands we'll swap to a versioned URL with SRI.
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const version = packageJson.version;
   return `<script
-  src="https://feedback-assistant.example/widget.js"
+  src="${origin}/widget/v${version}.js"
   data-project="${publicKey}"
   defer
 ></script>`;

@@ -24,14 +24,20 @@ WORKDIR /app
 # Set production environment
 ENV NODE_ENV=production
 
-# Copy built frontend
+# Copy built frontend (dashboard SPA)
 COPY --from=builder /app/dist ./dist
 
-# Copy backend
-COPY --from=builder /app/backend ./backend
-COPY --from=builder /app/backend/node_modules ./backend/node_modules
+# Copy built widget bundle (served at /widget/v<version>.js)
+COPY --from=builder /app/widget/dist ./widget/dist
 
-# Copy package files
+# Copy backend code
+COPY --from=builder /app/backend ./backend
+
+# npm workspaces hoist to the root node_modules — copy that, not backend's.
+# Node module resolution walks up from backend/ so backend code finds deps here.
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy package metadata (needed by node:sqlite + workspace resolution)
 COPY package*.json ./
 
 # Expose port
