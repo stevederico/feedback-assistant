@@ -1,4 +1,4 @@
-import { ChevronDown, Columns3, Plus } from "lucide-react"
+import { ChevronDown, Columns3, Plus } from "@stevederico/skateboard-ui/icons"
 
 import { Badge } from "@stevederico/skateboard-ui/shadcn/ui/badge"
 import { Button } from "@stevederico/skateboard-ui/shadcn/ui/button"

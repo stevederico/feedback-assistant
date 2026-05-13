@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Plus, GripVertical, Eye, EyeOff, Trash2, Pencil } from 'lucide-react';
+import { Plus, GripVertical, Eye, EyeOff, Trash2, Pencil } from '@stevederico/skateboard-ui/icons';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
