@@ -485,8 +485,10 @@ app.use('*', async (c, next) => {
   console.log(`[${timestamp}] "${method} ${url}" ${status} (${duration}ms)`);
 });
 
-// Security headers middleware
-app.use('*', secureHeaders({
+// Security headers middleware. Skip on the public widget route so the script
+// can be loaded from any customer origin — secureHeaders sets CORP=same-origin
+// by default, which Chrome enforces (ERR_BLOCKED_BY_RESPONSE.NotSameOrigin).
+const secureHeadersHandler = secureHeaders({
   contentSecurityPolicy: {
     defaultSrc: ["'self'"],
     scriptSrc: ["'self'", "'unsafe-inline'"],
@@ -506,7 +508,11 @@ app.use('*', secureHeaders({
     geolocation: [],
     payment: []
   }
-}));
+});
+app.use('*', async (c, next) => {
+  if (c.req.path.startsWith('/widget/')) return next();
+  return secureHeadersHandler(c, next);
+});
 
 // Request logging middleware (dev only)
 app.use('*', async (c, next) => {
@@ -1353,7 +1359,10 @@ app.get(`/widget/v${widgetVersion}.js`, async (c) => {
         'Cache-Control': 'public, max-age=31536000, immutable',
         'X-Content-Type-Options': 'nosniff',
         // Wide-open: this script is meant to be embedded on any customer origin.
+        // The default secureHeaders middleware sets CORP=same-origin which blocks
+        // cross-origin <script> loading. Override per-route.
         'Access-Control-Allow-Origin': '*',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
       },
     });
   } catch {
