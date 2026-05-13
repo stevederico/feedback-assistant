@@ -29,12 +29,28 @@ function maskKey(pk) {
 }
 
 /**
- * Resolve the signed-in user's org_id. Returns null if user has no org
- * (shouldn't happen after Phase 2 signup, but defensive).
+ * Resolve the signed-in user's org_id. If the user pre-dates the post-signup
+ * org-creation hook (e.g. accounts created with an earlier deploy), lazily
+ * create an org and link them in one transaction. Idempotent.
  */
 function getUserOrgId(db, userID) {
-  const row = db.prepare('SELECT org_id FROM Users WHERE _id = ?').get(userID);
-  return row?.org_id ?? null;
+  const row = db.prepare('SELECT org_id, name, email FROM Users WHERE _id = ?').get(userID);
+  if (!row) return null;
+  if (row.org_id) return row.org_id;
+
+  // Backfill: user exists but has no org yet. Create one and link.
+  const orgId = randomUUID();
+  const orgName = `${row.name || row.email || 'My'}'s workspace`;
+  db.exec('BEGIN');
+  try {
+    db.prepare('INSERT INTO Orgs (id, name, created_at) VALUES (?, ?, ?)').run(orgId, orgName, Date.now());
+    db.prepare('UPDATE Users SET org_id = ? WHERE _id = ?').run(orgId, userID);
+    db.exec('COMMIT');
+    return orgId;
+  } catch {
+    try { db.exec('ROLLBACK'); } catch { /* ignore */ }
+    return null;
+  }
 }
 
 /**
