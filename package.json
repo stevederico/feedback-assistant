@@ -1,8 +1,8 @@
 {
   "name": "feedback-assistant",
   "private": false,
-  "version": "3.0.0",
-  "skateboardVersion": "3.0.0",
+  "version": "3.0.1",
+  "skateboardVersion": "3.0.1",
   "type": "module",
   "workspaces": [
     "backend",
@@ -22,7 +22,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@stevederico/skateboard-ui": "^3.0.0",
+    "@stevederico/skateboard-ui": "3.0.1",
     "@tanstack/react-table": "^8.21.3",
     "lucide-react": "^1.11.0",
     "react": "19.2.6",
