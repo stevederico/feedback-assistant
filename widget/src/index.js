@@ -16,6 +16,8 @@ const STATE = {
     capturing: false,
     submitting: false,
   },
+  changelog: null, // array | null = not loaded, [] = loaded but empty
+  changelogLoading: false,
 };
 
 function setText(el, text) {
@@ -89,6 +91,9 @@ function ensureShadowRoot() {
     btn.addEventListener('click', () => {
       STATE.ui.activeTab = btn.dataset.tab;
       renderTabs();
+      if (btn.dataset.tab === 'changelog' && STATE.changelog === null) {
+        loadChangelog();
+      }
     });
   });
 
@@ -125,6 +130,86 @@ function renderTabs() {
   popover.querySelectorAll('.fa-panel').forEach((panel) => {
     panel.dataset.active = panel.dataset.panel === STATE.ui.activeTab ? 'true' : 'false';
   });
+}
+
+async function loadChangelog() {
+  if (STATE.changelogLoading) return;
+  STATE.changelogLoading = true;
+  renderChangelog(); // show loading state
+  try {
+    const url = `${STATE.config.apiUrl.replace(/\/$/, '')}/projects/${encodeURIComponent(STATE.config.projectKey)}/changelog`;
+    const res = await fetch(url, { credentials: 'omit' });
+    const data = await res.json().catch(() => ({}));
+    STATE.changelog = Array.isArray(data.changelog) ? data.changelog : [];
+  } catch {
+    STATE.changelog = [];
+  } finally {
+    STATE.changelogLoading = false;
+    renderChangelog();
+  }
+}
+
+function fmtPublished(ms) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function renderChangelog() {
+  const { popover } = STATE.refs;
+  const panel = popover.querySelector('.fa-panel-changelog');
+  panel.textContent = ''; // wipe — safe because we'll setText each node below
+
+  const section = document.createElement('div');
+  section.className = 'fa-changelog-section';
+  const header = document.createElement('div');
+  header.className = 'fa-section-header';
+  setText(header, 'Changelog');
+  section.appendChild(header);
+
+  if (STATE.changelogLoading && !STATE.changelog) {
+    const p = document.createElement('div');
+    p.className = 'fa-changelog-empty';
+    setText(p, 'Loading…');
+    section.appendChild(p);
+  } else if (!STATE.changelog || STATE.changelog.length === 0) {
+    const p = document.createElement('div');
+    p.className = 'fa-changelog-empty';
+    setText(p, 'No entries yet.');
+    section.appendChild(p);
+  } else {
+    const list = document.createElement('ol');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '0.75rem';
+    list.style.margin = '0';
+    list.style.padding = '0';
+    list.style.listStyle = 'none';
+    for (const entry of STATE.changelog) {
+      const li = document.createElement('li');
+      li.style.display = 'flex';
+      li.style.flexDirection = 'column';
+      li.style.gap = '0.25rem';
+
+      const title = document.createElement('div');
+      title.className = 'fa-changelog-version';
+      setText(title, entry.publishedAt ? `${fmtPublished(entry.publishedAt)} · ${entry.title}` : entry.title);
+      li.appendChild(title);
+
+      if (entry.body) {
+        const body = document.createElement('div');
+        body.style.fontSize = '0.875rem';
+        body.style.whiteSpace = 'pre-wrap';
+        body.style.lineHeight = '1.4';
+        setText(body, entry.body);
+        li.appendChild(body);
+      }
+      list.appendChild(li);
+    }
+    section.appendChild(list);
+  }
+
+  panel.appendChild(section);
 }
 
 function renderScreenshot() {

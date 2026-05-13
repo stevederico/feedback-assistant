@@ -20,14 +20,14 @@
  * @see {@link https://github.com/stevederico/skateboard|Skateboard Docs}
  */
 import './assets/styles.css';
-import { lazy, Suspense } from 'react';
 import { createSkateboardApp } from '@stevederico/skateboard-ui/App';
-import { Spinner } from '@stevederico/skateboard-ui/shadcn/ui/spinner';
 import Layout from '@stevederico/skateboard-ui/Layout';
 import CommandMenu from './components/CommandMenu.jsx';
 import constants from './constants.json';
-const HomeView = lazy(() => import('./components/HomeView.jsx'));
-import ChatView from './components/ChatView.jsx';
+import ProjectsView from './components/ProjectsView.jsx';
+import SubmissionsView from './components/SubmissionsView.jsx';
+import ProjectSettingsView from './components/ProjectSettingsView.jsx';
+import ChangelogView from './components/ChangelogView.jsx';
 import BlankView from './components/BlankView.jsx';
 
 /**
@@ -56,11 +56,10 @@ function AppLayout() {
  * @type {Array<{path: string, element: JSX.Element}>}
  */
 const appRoutes = [
-  { path: 'home', element: <Suspense fallback={<div className="flex flex-1 items-center justify-center"><Spinner /></div>}><HomeView /></Suspense> },
-  { path: 'chat', element: <ChatView /> },
-  { path: 'analytics', element: <BlankView title="Analytics" description="Analytics will appear here once you have activity." buttonTitle="View Reports" /> },
-  { path: 'projects', element: <BlankView title="Projects" description="Create your first project to get started." buttonTitle="Create Project" /> },
-  { path: 'team', element: <BlankView title="Team" description="Invite your first team member to start collaborating." buttonTitle="Invite Member" /> }
+  { path: 'projects', element: <ProjectsView /> },
+  { path: 'submissions', element: <SubmissionsView /> },
+  { path: 'changelog', element: <ChangelogView /> },
+  { path: 'project-settings', element: <ProjectSettingsView /> }
 ];
 
 /**
@@ -81,9 +80,6 @@ const appRoutes = [
 createSkateboardApp({
   constants,
   appRoutes,
-  defaultRoute: 'home',
+  defaultRoute: 'projects',
   overrides: { layout: AppLayout }
 });
-
-/** Preload HomeView chunk after initial render for instant navigation */
-setTimeout(() => import('./components/HomeView.jsx'), 2000);
