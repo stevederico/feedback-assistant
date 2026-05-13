@@ -3,7 +3,7 @@
 //
 // apiRequest already handles cookies, CSRF header, 30s timeout, and 401 redirect.
 
-import { apiRequest } from '@stevederico/skateboard-ui/Utilities';
+import { apiRequest, getBackendURL } from '@stevederico/skateboard-ui/Utilities';
 
 function call(path, opts = {}) {
   return apiRequest(path, opts);
@@ -37,7 +37,16 @@ export const faApi = {
     call(`/projects/${projectId}/changelog/reorder`, { method: 'POST', body: JSON.stringify({ items }) }),
 };
 
-/** URL for a screenshot (auth-gated; works as <img src>). */
+/**
+ * URL for a screenshot (auth-gated; works as <img src>).
+ *
+ * In dev the dashboard is on :5173 and the API on :8000 — different origins.
+ * Browsers don't send cookies on cross-origin <img> requests unless the tag
+ * is marked `crossorigin="use-credentials"` AND the response includes the
+ * matching CORS headers. The image components also need the right origin,
+ * so resolve via skateboard's getBackendURL().
+ */
 export function screenshotUrl(screenshotId) {
-  return screenshotId ? `/api/screenshots/${screenshotId}` : null;
+  if (!screenshotId) return null;
+  return `${getBackendURL()}/screenshots/${screenshotId}`;
 }

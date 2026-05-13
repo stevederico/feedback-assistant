@@ -245,6 +245,7 @@ export default function SubmissionsView() {
                   >
                     <img
                       src={screenshotUrl(activeDetail.screenshotId)}
+                      crossOrigin="use-credentials"
                       alt="Submission screenshot"
                       className="w-full h-auto block"
                     />
