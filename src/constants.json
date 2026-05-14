@@ -51,11 +51,6 @@
             "title": "Changelog",
             "url": "changelog",
             "icon": "list"
-        },
-        {
-            "title": "Settings",
-            "url": "project-settings",
-            "icon": "settings"
         }
     ],
     "stripeProducts": [

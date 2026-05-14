@@ -1,3 +1,10 @@
+3.2.0
+
+  Add project details modal
+  Embed snippet in disclosure
+  Fix asChild on triggers
+  Remove project-settings route
+
 3.1.2
 
   Upgrade to skateboard 3.1.2
