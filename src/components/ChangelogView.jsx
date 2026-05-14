@@ -67,10 +67,8 @@ function SortableRow({ entry, onEdit, onTogglePublish, onDelete }) {
           <Pencil size={14} />
         </Button>
         <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button size="sm" variant="outline" title="Delete">
-              <Trash2 size={14} />
-            </Button>
+          <AlertDialogTrigger render={<Button size="sm" variant="outline" title="Delete" />}>
+            <Trash2 size={14} />
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -214,8 +212,8 @@ export default function ChangelogView() {
           <ProjectPicker projects={projects} currentId={currentId} onChange={setCurrentId} />
         )}
         <Dialog open={creating} onOpenChange={setCreating}>
-          <DialogTrigger asChild>
-            <Button size="sm" disabled={!current}><Plus size={16} /> New entry</Button>
+          <DialogTrigger render={<Button size="sm" disabled={!current} />}>
+            <Plus size={16} /> New entry
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>

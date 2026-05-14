@@ -26,7 +26,6 @@ import CommandMenu from './components/CommandMenu.jsx';
 import constants from './constants.json';
 import ProjectsView from './components/ProjectsView.jsx';
 import SubmissionsView from './components/SubmissionsView.jsx';
-import ProjectSettingsView from './components/ProjectSettingsView.jsx';
 import ChangelogView from './components/ChangelogView.jsx';
 import BlankView from './components/BlankView.jsx';
 import LandingSpecSheet from './components/LandingSpecSheet.jsx';
@@ -59,8 +58,7 @@ function AppLayout() {
 const appRoutes = [
   { path: 'projects', element: <ProjectsView /> },
   { path: 'submissions', element: <SubmissionsView /> },
-  { path: 'changelog', element: <ChangelogView /> },
-  { path: 'project-settings', element: <ProjectSettingsView /> }
+  { path: 'changelog', element: <ChangelogView /> }
 ];
 
 /**

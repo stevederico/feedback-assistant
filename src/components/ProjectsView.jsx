@@ -15,6 +15,8 @@ import {
 import { Card } from '@stevederico/skateboard-ui/shadcn/ui/card';
 import Header from '@stevederico/skateboard-ui/Header';
 import { faApi } from '../util/api.js';
+import { embedSnippet } from '../util/embed.js';
+import ProjectDetailsDialog from './ProjectDetailsDialog.jsx';
 
 function formatDate(ms) {
   if (!ms) return '';
@@ -34,6 +36,7 @@ export default function ProjectsView() {
   const [projects, setProjects] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [newKey, setNewKey] = useState(null); // { id, name, publicKey } returned on create
+  const [detailsId, setDetailsId] = useState(null);
 
   function load() {
     faApi.listProjects().then((r) => setProjects(r.projects || [])).catch(() => setProjects([]));
@@ -64,8 +67,8 @@ export default function ProjectsView() {
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <Header title="Projects">
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus size={16} /> New project</Button>
+          <DialogTrigger render={<Button size="sm" />}>
+            <Plus size={16} /> New project
           </DialogTrigger>
           <CreateProjectDialog
             onCreated={(p) => {
@@ -94,7 +97,11 @@ export default function ProjectsView() {
         <div className="flex flex-col gap-2">
           {projects.map((p) => (
             <Card key={p.id} className="p-4 flex items-start justify-between gap-4">
-              <div className="flex flex-col gap-1 min-w-0">
+              <button
+                type="button"
+                onClick={() => setDetailsId(p.id)}
+                className="flex flex-col gap-1 min-w-0 text-left hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+              >
                 <div className="text-sm font-medium">{p.name}</div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="font-mono">{p.publicKey}</span>
@@ -103,16 +110,14 @@ export default function ProjectsView() {
                   <span>·</span>
                   <span>Created {formatDate(p.createdAt)}</span>
                 </div>
-              </div>
+              </button>
               <div className="flex items-center gap-1 shrink-0">
                 <Button size="sm" variant="outline" onClick={() => handleRotate(p)} title="Rotate key">
                   <KeyRound size={14} /> Rotate
                 </Button>
                 <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button size="sm" variant="outline" title="Delete project">
-                      <Trash2 size={14} />
-                    </Button>
+                  <AlertDialogTrigger render={<Button size="sm" variant="outline" title="Delete project" />}>
+                    <Trash2 size={14} />
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
@@ -134,6 +139,13 @@ export default function ProjectsView() {
         </div>
       )}
 
+      <ProjectDetailsDialog
+        project={projects?.find((p) => p.id === detailsId) || null}
+        open={!!detailsId}
+        onOpenChange={(o) => !o && setDetailsId(null)}
+        onChanged={load}
+      />
+
       {/* Key disclosure dialog — shown once after create or rotate. */}
       <Dialog open={!!newKey} onOpenChange={(o) => !o && setNewKey(null)}>
         <DialogContent>
@@ -143,18 +155,36 @@ export default function ProjectsView() {
               {newKey?.name}
             </DialogTitle>
             <DialogDescription>
-              Copy this key now. You won't see the full value again.
+              Copy the key or the full embed snippet now — you won't see the full key again.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
-            <code className="flex-1 font-mono text-xs break-all">{newKey?.publicKey}</code>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => copyToClipboard(newKey?.publicKey)}
-            >
-              <Copy size={14} />
-            </Button>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
+              <code className="flex-1 font-mono text-xs break-all">{newKey?.publicKey}</code>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => copyToClipboard(newKey?.publicKey)}
+              >
+                <Copy size={14} />
+              </Button>
+            </div>
+            {newKey?.publicKey && (
+              <>
+                <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto">
+                  <code>{embedSnippet(newKey.publicKey)}</code>
+                </pre>
+                <div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => copyToClipboard(embedSnippet(newKey.publicKey))}
+                  >
+                    <Copy size={14} /> Copy snippet
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button onClick={() => setNewKey(null)}>Done</Button>

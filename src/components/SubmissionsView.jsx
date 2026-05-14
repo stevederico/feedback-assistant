@@ -277,10 +277,8 @@ export default function SubmissionsView() {
                   </Button>
                 )}
                 <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm">
-                      <Trash2 size={14} /> Delete
-                    </Button>
+                  <AlertDialogTrigger render={<Button variant="destructive" size="sm" />}>
+                    <Trash2 size={14} /> Delete
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
