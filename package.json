@@ -2,7 +2,7 @@
   "name": "feedback-assistant",
   "private": false,
   "version": "3.2.0",
-  "skateboardVersion": "3.1.2",
+  "skateboardVersion": "3.5.0",
   "type": "module",
   "workspaces": [
     "backend",
