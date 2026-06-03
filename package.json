@@ -15,7 +15,8 @@
     "widget": "npm run --workspace=widget dev",
     "build": "vite build --mode production && npm run --workspace=widget build",
     "prod": "vite build --mode production && npm run --workspace=widget build",
-    "install-all": "npm install && npm install --workspace=backend && npm install --workspace=widget"
+    "install-all": "npm install && npm install --workspace=backend && npm install --workspace=widget",
+    "verify:ui": "node scripts/verify-ui-version.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
