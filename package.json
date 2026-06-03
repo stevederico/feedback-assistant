@@ -2,7 +2,7 @@
   "name": "feedback-assistant",
   "private": false,
   "version": "3.2.0",
-  "skateboardVersion": "3.5.0",
+  "skateboardVersion": "3.6.1",
   "type": "module",
   "workspaces": [
     "backend",
@@ -11,7 +11,7 @@
   "scripts": {
     "start": "npm run front & npm run server & npm run widget",
     "front": "vite --force --mode development",
-    "server": "npm run --workspace=backend start",
+    "server": "npm run --workspace=backend dev",
     "widget": "npm run --workspace=widget dev",
     "build": "vite build --mode production && npm run --workspace=widget build",
     "prod": "vite build --mode production && npm run --workspace=widget build",
@@ -37,5 +37,8 @@
     "@vitejs/plugin-react-swc": "4.3.0",
     "tailwindcss": "4.3.0",
     "vite": "7.3.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

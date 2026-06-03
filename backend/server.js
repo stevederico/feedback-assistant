@@ -10,10 +10,6 @@ import { compare as legacyBcryptCompare } from "./vendor/legacy-bcrypt.js";
 import crypto from "crypto";
 
 import { databaseManager } from "./adapters/manager.js";
-import { createWidgetApi } from "./widget-api.js";
-import { bootstrapFeedbackSchema } from "./feedback-schema.js";
-import { createFeedbackDashboardApi } from "./feedback-dashboard-api.js";
-import { ensureUploadsDir } from "./feedback-uploads.js";
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile, mkdir, stat, readFileSync, writeFileSync, statSync } from 'node:fs';
@@ -441,6 +437,7 @@ const db = {
   updateUser: (query, update) => databaseManager.updateUser(currentDbConfig.dbType, currentDbConfig.db, currentDbConfig.connectionString, query, update),
   findAuth: (query) => databaseManager.findAuth(currentDbConfig.dbType, currentDbConfig.db, currentDbConfig.connectionString, query),
   insertAuth: (authData) => databaseManager.insertAuth(currentDbConfig.dbType, currentDbConfig.db, currentDbConfig.connectionString, authData),
+  updateAuth: (query, update) => databaseManager.updateAuth(currentDbConfig.dbType, currentDbConfig.db, currentDbConfig.connectionString, query, update),
   findWebhookEvent: (eventId) => databaseManager.findWebhookEvent(currentDbConfig.dbType, currentDbConfig.db, currentDbConfig.connectionString, eventId),
   insertWebhookEvent: (eventId, eventType, processedAt) => databaseManager.insertWebhookEvent(currentDbConfig.dbType, currentDbConfig.db, currentDbConfig.connectionString, eventId, eventType, processedAt),
   executeQuery: (queryObject) => databaseManager.executeQuery(currentDbConfig.dbType, currentDbConfig.db, currentDbConfig.connectionString, queryObject)
@@ -459,17 +456,12 @@ const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
   : ['http://localhost:5173', 'http://localhost:8000', 'http://127.0.0.1:5173', 'http://127.0.0.1:8000'];
 
-// Strict CORS for the dashboard API. /v1/* (widget ingest) gets its own
-// permissive CORS from widget-api.js — widgets call this from customer origins.
-app.use('*', async (c, next) => {
-  if (c.req.path.startsWith('/v1/')) return next();
-  return cors({
-    origin: corsOrigins,
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'],
-    credentials: true,
-  })(c, next);
-});
+app.use('*', cors({
+  origin: corsOrigins,
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'],
+  credentials: true
+}));
 
 // Apache Common Log Format middleware
 app.use('*', async (c, next) => {
@@ -484,10 +476,8 @@ app.use('*', async (c, next) => {
   console.log(`[${timestamp}] "${method} ${url}" ${status} (${duration}ms)`);
 });
 
-// Security headers middleware. Skip on the public widget route so the script
-// can be loaded from any customer origin — secureHeaders sets CORP=same-origin
-// by default, which Chrome enforces (ERR_BLOCKED_BY_RESPONSE.NotSameOrigin).
-const secureHeadersHandler = secureHeaders({
+// Security headers middleware
+app.use('*', secureHeaders({
   contentSecurityPolicy: {
     defaultSrc: ["'self'"],
     scriptSrc: ["'self'", "'unsafe-inline'"],
@@ -507,11 +497,7 @@ const secureHeadersHandler = secureHeaders({
     geolocation: [],
     payment: []
   }
-});
-app.use('*', async (c, next) => {
-  if (c.req.path.startsWith('/widget/')) return next();
-  return secureHeadersHandler(c, next);
-});
+}));
 
 // Request logging middleware (dev only)
 app.use('*', async (c, next) => {
@@ -1017,35 +1003,38 @@ app.post("/api/signup", async (c) => {
 
     const hash = await hashPassword(password);
     let insertID = generateUUID()
-    const orgId = generateUUID();
-    const orgName = `${name}'s workspace`;
-    const now = Date.now();
 
     try {
-      // Wrap Org + User + Auth + org_id link in one SQLite transaction.
-      // node:sqlite shares the cached handle (rawDb) with the abstracted
-      // db.insertUser/insertAuth calls — same connection, so BEGIN covers all.
-      rawDb.exec('BEGIN');
+      // Insert user first
+      await db.insertUser({
+        _id: insertID,
+        email: email,
+        name: name,
+        created_at: Date.now()
+      });
+
+      // Insert auth record (compensating delete on failure)
       try {
-        rawDb.prepare('INSERT INTO Orgs (id, name, created_at) VALUES (?, ?, ?)').run(orgId, orgName, now);
-        await db.insertUser({ _id: insertID, email, name, created_at: now });
-        rawDb.prepare('UPDATE Users SET org_id = ? WHERE _id = ?').run(orgId, insertID);
-        await db.insertAuth({ email, password: hash, userID: insertID });
-        rawDb.exec('COMMIT');
-      } catch (txErr) {
-        try { rawDb.exec('ROLLBACK'); } catch { /* ignore */ }
-        throw txErr;
+        await db.insertAuth({ email: email, password: hash, userID: insertID });
+      } catch (authError) {
+        // Rollback: delete the user we just created
+        logger.error('Auth insert failed, rolling back user creation', { error: authError.message });
+        try {
+          await db.executeQuery({ query: 'DELETE FROM Users WHERE _id = ?', params: [insertID] });
+        } catch (rollbackError) {
+          logger.error('Rollback failed - orphaned user record', { userID: insertID, error: rollbackError.message });
+        }
+        throw authError;
       }
 
       const token = await generateToken(insertID);
       setAuthCookies(c, insertID, token);
-      logger.info('Signup success', { userID: insertID, orgId });
+      logger.info('Signup success');
 
       return c.json({
         id: insertID.toString(),
         email: email,
         name: name.trim(),
-        orgId,
         tokenExpires: tokenExpireTimestamp()
       }, 201);
     } catch (e) {
@@ -1109,7 +1098,7 @@ app.post("/api/signin", async (c) => {
     if (needsRehash(auth.password)) {
       try {
         const newHash = await hashPassword(password);
-        await db.executeQuery({ query: 'UPDATE Auths SET password = ? WHERE email = ?', params: [newHash, email] });
+        await db.updateAuth({ email }, { password: newHash });
         logger.debug('Password hash migrated to scrypt');
       } catch (e) {
         logger.warn('Password rehash failed', { error: e.message });
@@ -1396,63 +1385,6 @@ app.post("/api/portal", authMiddleware, csrfProtection, async (c) => {
   } catch (e) {
     logger.error('Portal session error', { error: e.message });
     return c.json({ error: "Stripe portal failed" }, 500);
-  }
-});
-
-// ==== FEEDBACK-ASSISTANT SCHEMA BOOTSTRAP ====
-// Force DB initialization, then run our DDL (idempotent).
-let rawDb = null;
-try {
-  const { database } = await databaseManager.getDatabase(
-    currentDbConfig.dbType,
-    currentDbConfig.db,
-    currentDbConfig.connectionString
-  );
-  rawDb = database;
-  bootstrapFeedbackSchema(rawDb);
-  const uploadsDir = await ensureUploadsDir();
-  logger.info('Feedback Assistant schema ready', { uploadsDir });
-} catch (e) {
-  logger.error('Failed to bootstrap feedback schema', { error: e.message });
-  throw e;
-}
-
-// ==== WIDGET INGEST API (mounted at /v1) ====
-app.route('/v1', createWidgetApi({ logger, db: rawDb }));
-
-// ==== FEEDBACK DASHBOARD API (mounted under /api) ====
-app.route('/api', createFeedbackDashboardApi({
-  db: rawDb,
-  authMiddleware,
-  csrfProtection,
-  logger,
-}));
-
-// ==== WIDGET BUNDLE (served versioned, immutably cached) ====
-// Customers embed via <script src="https://<host>/widget/v0.1.0.js">. Each
-// version URL is immutable: the file lives at widget/dist/feedback-assistant.js
-// inside the container, but the public URL is pinned to a semver in package.json
-// so a customer pinning v0.1.0 keeps getting the same bytes forever (until they
-// upgrade). Add an SRI hash in the embed snippet after computing at deploy time.
-const widgetVersion = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8')).version;
-const widgetBundlePath = resolve(__dirname, '..', 'widget', 'dist', 'feedback-assistant.js');
-app.get(`/widget/v${widgetVersion}.js`, async (c) => {
-  try {
-    const buf = await promisify(readFile)(widgetBundlePath);
-    return new Response(buf, {
-      headers: {
-        'Content-Type': 'application/javascript; charset=utf-8',
-        'Cache-Control': 'public, max-age=31536000, immutable',
-        'X-Content-Type-Options': 'nosniff',
-        // Wide-open: this script is meant to be embedded on any customer origin.
-        // The default secureHeaders middleware sets CORP=same-origin which blocks
-        // cross-origin <script> loading. Override per-route.
-        'Access-Control-Allow-Origin': '*',
-        'Cross-Origin-Resource-Policy': 'cross-origin',
-      },
-    });
-  } catch {
-    return c.text('Widget bundle missing', 404);
   }
 });
 

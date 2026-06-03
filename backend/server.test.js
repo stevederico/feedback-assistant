@@ -4,42 +4,25 @@
  * Tests all auth endpoints: signup, signin, signout, CSRF, and JWT middleware.
  * Uses Node.js built-in test runner (node --test).
  *
- * Run with: node --test --experimental-sqlite server.test.js
+ * Run with: node --test server.test.js
  */
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { Hono } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
+import { compare as legacyBcryptCompare } from './vendor/legacy-bcrypt.js';
 import crypto from 'crypto';
 import { promisify } from 'node:util';
-import { DatabaseSync as Database } from 'node:sqlite';
-import { mkdir, rm } from 'node:fs/promises';
 
-// ==== NATIVE AUTH PRIMITIVES (mirror server.js — node:crypto, no jwt/bcrypt) ====
 const scryptAsync = promisify(crypto.scrypt);
-const SCRYPT_KEYLEN = 64;
-const SCRYPT_SALTLEN = 16;
 
-/**
- * Sign an HS256 JWT using node:crypto HMAC-SHA256 (mirrors server.js jwtSign).
- * @param {Object} payload - Payload to encode (must include exp)
- * @param {string} secret - HMAC signing secret
- * @returns {string} Compact JWT string
- */
+// Local HS256 JWT helpers (mirror server.js implementation)
 function jwtSign(payload, secret) {
   const head = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const sig = crypto.createHmac('sha256', secret).update(`${head}.${body}`).digest('base64url');
   return `${head}.${body}.${sig}`;
 }
-
-/**
- * Verify an HS256 JWT and return its payload (mirrors server.js jwtVerify).
- * @param {string} token - JWT string to verify
- * @param {string} secret - HMAC verification secret
- * @returns {Object} Decoded payload
- * @throws {Error} If token is malformed, signature invalid, or expired
- */
 function jwtVerify(token, secret) {
   const parts = token.split('.');
   if (parts.length !== 3) throw new Error('Invalid token');
@@ -59,6 +42,8 @@ function jwtVerify(token, secret) {
   }
   return payload;
 }
+import { DatabaseSync as Database } from 'node:sqlite';
+import { mkdir, rm } from 'node:fs/promises';
 
 // Test configuration
 const TEST_DB_PATH = './databases/test.db';
@@ -104,18 +89,23 @@ function createTestApp() {
   const generateCSRFToken = () => crypto.randomBytes(32).toString('hex');
   const generateUUID = () => crypto.randomUUID();
   const hashPassword = async (password) => {
-    const salt = crypto.randomBytes(SCRYPT_SALTLEN);
-    const key = await scryptAsync(password, salt, SCRYPT_KEYLEN);
+    const salt = crypto.randomBytes(16);
+    const key = await scryptAsync(password, salt, 64);
     return `scrypt$${salt.toString('base64url')}$${key.toString('base64url')}`;
   };
   const verifyPassword = async (password, stored) => {
-    if (typeof stored !== 'string' || !stored.startsWith('scrypt$')) return false;
-    const [, saltB64, keyB64] = stored.split('$');
-    const salt = Buffer.from(saltB64, 'base64url');
-    const expected = Buffer.from(keyB64, 'base64url');
-    const candidate = await scryptAsync(password, salt, SCRYPT_KEYLEN);
-    return expected.length === candidate.length && crypto.timingSafeEqual(expected, candidate);
+    if (typeof stored !== 'string') return false;
+    if (stored.startsWith('scrypt$')) {
+      const [, saltB64, keyB64] = stored.split('$');
+      const salt = Buffer.from(saltB64, 'base64url');
+      const expected = Buffer.from(keyB64, 'base64url');
+      const candidate = await scryptAsync(password, salt, 64);
+      return expected.length === candidate.length && crypto.timingSafeEqual(expected, candidate);
+    }
+    if (stored.startsWith('$2')) return await legacyBcryptCompare(password, stored);
+    return false;
   };
+  const needsRehash = (stored) => typeof stored === 'string' && !stored.startsWith('scrypt$');
   const generateToken = (userID) => jwtSign({ userID, exp: Math.floor(Date.now() / 1000) + 86400 }, JWT_SECRET);
 
   // Auth middleware
@@ -208,6 +198,14 @@ function createTestApp() {
       if (!auth) return c.json({ error: 'Invalid credentials' }, 401);
       if (!(await verifyPassword(password, auth.password))) {
         return c.json({ error: 'Invalid credentials' }, 401);
+      }
+
+      // Lazy migrate legacy bcrypt hash to scrypt
+      if (needsRehash(auth.password)) {
+        try {
+          const newHash = await hashPassword(password);
+          db.prepare('UPDATE Auths SET password = ? WHERE email = ?').run(newHash, email);
+        } catch (e) { /* best-effort */ }
       }
 
       const user = db.prepare('SELECT * FROM Users WHERE email = ?').get(email);
@@ -413,6 +411,66 @@ describe('Authentication Flow', () => {
       });
       const res = await app.fetch(req);
       assert.equal(res.status, 400);
+    });
+  });
+
+  describe('Legacy bcrypt migration', () => {
+    // Real bcrypt hash of 'validpassword123' at cost 10 — fixture for legacy verify path
+    const LEGACY_BCRYPT_HASH = '$2b$10$gix5z78/st4CdQYVM8C4g.ygzzWZQ39pnLKhxVtMWK1HUeASfzIyG';
+    const LEGACY_USER = {
+      email: 'legacy@example.com',
+      name: 'Legacy User',
+      password: 'validpassword123'
+    };
+
+    function seedLegacyUser() {
+      const userId = crypto.randomUUID();
+      db.prepare('INSERT INTO Users (_id, email, name, created_at) VALUES (?, ?, ?, ?)')
+        .run(userId, LEGACY_USER.email, LEGACY_USER.name, Date.now());
+      db.prepare('INSERT INTO Auths (email, password, userID) VALUES (?, ?, ?)')
+        .run(LEGACY_USER.email, LEGACY_BCRYPT_HASH, userId);
+      return userId;
+    }
+
+    it('signs in user with stored bcrypt hash', async () => {
+      seedLegacyUser();
+      const res = await request('POST', '/api/signin', {
+        body: { email: LEGACY_USER.email, password: LEGACY_USER.password }
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.email, LEGACY_USER.email);
+    });
+
+    it('rejects wrong password against bcrypt hash', async () => {
+      seedLegacyUser();
+      const res = await request('POST', '/api/signin', {
+        body: { email: LEGACY_USER.email, password: 'wrongpassword' }
+      });
+      assert.equal(res.status, 401);
+    });
+
+    it('rehashes bcrypt hash to scrypt on successful login', async () => {
+      seedLegacyUser();
+      const before = db.prepare('SELECT password FROM Auths WHERE email = ?').get(LEGACY_USER.email);
+      assert.ok(before.password.startsWith('$2'), 'fixture should be bcrypt');
+
+      const res = await request('POST', '/api/signin', {
+        body: { email: LEGACY_USER.email, password: LEGACY_USER.password }
+      });
+      assert.equal(res.status, 200);
+
+      const after = db.prepare('SELECT password FROM Auths WHERE email = ?').get(LEGACY_USER.email);
+      assert.ok(after.password.startsWith('scrypt$'), 'hash should be migrated to scrypt');
+
+      // And the migrated hash itself verifies correctly
+      const verifyOk = await (async () => {
+        const [, s, k] = after.password.split('$');
+        const salt = Buffer.from(s, 'base64url');
+        const expected = Buffer.from(k, 'base64url');
+        const candidate = await scryptAsync(LEGACY_USER.password, salt, 64);
+        return expected.length === candidate.length && crypto.timingSafeEqual(expected, candidate);
+      })();
+      assert.ok(verifyOk, 'migrated scrypt hash must verify against original password');
     });
   });
 

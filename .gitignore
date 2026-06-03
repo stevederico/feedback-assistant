@@ -12,8 +12,6 @@ dist
 dist-ssr
 *.local
 
-deno.lock
-
 # Environment variables
 .env
 .env.local
@@ -23,6 +21,9 @@ deno.lock
 backend/.env
 
 .claude/
+.agent-browser/
+.playwright-mcp/
+deno.lock
 
 # Editor directories and files
 .vscode/*
@@ -39,9 +40,6 @@ backend/.env
 *.db
 *.db-shm
 *.db-wal
-
-# Uploaded screenshots (volume-backed in prod)
-backend/databases/uploads/
 
 MIGRATION_GUIDE-0.9.8.md
 SKATEBOARD_UI_EXTENSIONS_PROPOSAL.md
