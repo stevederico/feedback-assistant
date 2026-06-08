@@ -1,3 +1,7 @@
+3.2.3
+
+  Copy root package.json
+
 3.2.2
 
   Ship widget bundle

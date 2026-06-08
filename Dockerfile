@@ -24,6 +24,8 @@ ENV NODE_ENV=production
 COPY --from=builder /app/dist ./dist
 # Widget bundle served at /widget/v<version>.js — must ship in the runtime image.
 COPY --from=builder /app/widget/dist ./widget/dist
+# Root package.json: server reads it at /app/package.json to derive the widget version.
+COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/backend ./backend
 
 RUN apk add --no-cache --virtual .build-deps python3 make g++ \
