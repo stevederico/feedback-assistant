@@ -1,3 +1,8 @@
+3.2.2
+
+  Ship widget bundle
+  Fix volume permissions
+
 3.2.1
 
   Restore feedback backend wiring

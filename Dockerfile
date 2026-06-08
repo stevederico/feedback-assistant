@@ -22,15 +22,17 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=builder /app/dist ./dist
+# Widget bundle served at /widget/v<version>.js — must ship in the runtime image.
+COPY --from=builder /app/widget/dist ./widget/dist
 COPY --from=builder /app/backend ./backend
 
 RUN apk add --no-cache --virtual .build-deps python3 make g++ \
     && cd backend && npm install --omit=dev \
     && apk del .build-deps
 
-RUN chown -R node:node /app/backend
-
-USER node
+# Run as root: the Railway volume mounts at /app/backend/databases owned by
+# root and masks any build-time chown, so a non-root USER cannot create the
+# SQLite file. Root can write the volume; matches the known-working config.
 
 EXPOSE 8000
 
