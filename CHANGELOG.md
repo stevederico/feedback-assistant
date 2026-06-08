@@ -1,3 +1,10 @@
+3.2.1
+
+  Restore feedback backend wiring
+  Remount widget ingest
+  Restore versioned widget bundle
+  Re-add org bootstrap
+
 3.2.0
 
   Add project details modal
