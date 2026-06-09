@@ -4,7 +4,7 @@
 //   POST /v1/submissions               — accepts feedback, persists row
 //   POST /v1/screenshots               — multipart upload, returns screenshotId
 //   GET  /v1/projects/:pk/changelog    — public, published-only, sort_order
-//   GET  /v1/projects/:pk/config       — public, per-project widget config (greeting)
+//   GET  /v1/projects/:pk/widget        — public, per-project widget config (greeting)
 //
 // Auth model:
 //   - All POSTs require X-Project-Key: pk_*  (looked up against Projects table)
@@ -169,9 +169,11 @@ export function createWidgetApi({ logger, db } = {}) {
     return c.json({ screenshotId: storedId });
   });
 
-  app.get('/projects/:pk/config', (c) => {
-    // Public per-project widget config. Mirrors the changelog endpoint's
-    // no-leak posture: unknown keys get {greeting:null} (200, not 404).
+  app.get('/projects/:pk/widget', (c) => {
+    // Public per-project widget config (greeting). Named /widget rather than
+    // /config because Cloudflare's WAF blocks any path containing "config".
+    // Mirrors the changelog endpoint's no-leak posture: unknown keys get
+    // {greeting:null} (200, not 404).
     const project = findProjectByKey(db, c.req.param('pk'));
     c.header('Cache-Control', 'public, max-age=60');
     return c.json({ greeting: project?.greeting ?? null });

@@ -195,7 +195,7 @@ function renderTabs() {
 async function loadConfig() {
   try {
     const base = STATE.config.apiUrl.replace(/\/$/, '');
-    const url = `${base}/projects/${encodeURIComponent(STATE.config.projectKey)}/config`;
+    const url = `${base}/projects/${encodeURIComponent(STATE.config.projectKey)}/widget`;
     const res = await fetch(url, { credentials: 'omit' });
     const data = await res.json().catch(() => ({}));
     if (data && typeof data.greeting === 'string' && data.greeting.trim()) {

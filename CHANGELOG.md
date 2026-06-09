@@ -1,3 +1,8 @@
+3.3.1
+
+  Rename widget config-route
+  Dodge Cloudflare WAF
+
 3.3.0
 
   Greeting from config

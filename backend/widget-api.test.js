@@ -46,16 +46,16 @@ before(() => {
   app._db = db;
 });
 
-test('GET /v1/projects/:pk/config returns greeting for a valid key', async () => {
-  const res = await app.request(`/projects/${PK}/config`);
+test('GET /v1/projects/:pk/widget returns greeting for a valid key', async () => {
+  const res = await app.request(`/projects/${PK}/widget`);
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('cache-control'), 'public, max-age=60');
   const body = await res.json();
   assert.equal(body.greeting, 'Hey there!');
 });
 
-test('GET /v1/projects/:pk/config returns null greeting for an unknown key (no leak)', async () => {
-  const res = await app.request('/projects/pk_does_not_exist/config');
+test('GET /v1/projects/:pk/widget returns null greeting for an unknown key (no leak)', async () => {
+  const res = await app.request('/projects/pk_does_not_exist/widget');
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.greeting, null);
