@@ -532,7 +532,10 @@ async function handleSend() {
   }
 }
 
-export const FeedbackAssistant = {
+// NOTE: default export (not named). vite's IIFE build exposes the module's
+// default export as the global `FeedbackAssistant`; a named export would expose
+// the namespace object instead, hiding init/identify/show one level deeper.
+const FeedbackAssistant = {
   init(options = {}) {
     if (!options.projectKey) {
       console.warn('[FeedbackAssistant] projectKey is required');
@@ -579,3 +582,5 @@ if (typeof document !== 'undefined') {
 if (typeof window !== 'undefined') {
   window.FeedbackAssistant = FeedbackAssistant;
 }
+
+export default FeedbackAssistant;

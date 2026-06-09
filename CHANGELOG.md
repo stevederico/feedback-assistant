@@ -1,3 +1,8 @@
+3.3.2
+
+  Fix widget global API
+  Default export bundle
+
 3.3.1
 
   Rename widget config-route
