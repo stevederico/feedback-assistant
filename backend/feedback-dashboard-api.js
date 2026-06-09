@@ -62,8 +62,11 @@ function getOrgProject(db, projectId, orgId) {
     .get(projectId, orgId);
 }
 
-export function createFeedbackDashboardApi({ db, authMiddleware, csrfProtection, logger }) {
+export function createFeedbackDashboardApi({ db, authMiddleware, csrfProtection, logger, widgetVersion = null, widgetIntegrity = null }) {
   const app = new Hono();
+
+  // --- Widget bundle SRI (public; the dashboard renders it into the embed snippet) ---
+  app.get('/widget-integrity', (c) => c.json({ version: widgetVersion, integrity: widgetIntegrity }));
 
   // --- Projects ---
 

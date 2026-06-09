@@ -1,3 +1,15 @@
+3.3.0
+
+  Greeting from config
+  Lazy html2canvas capture
+  Fix screenshot persistence
+  CSP-safe widget DOM
+  SRI embed snippet
+  Fix embed API-base
+  Polish landing copy
+  Submissions setup empty-state
+  Widget endpoint tests
+
 3.2.3
 
   Copy root package.json

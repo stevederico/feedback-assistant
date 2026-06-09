@@ -1418,6 +1418,26 @@ try {
   throw e;
 }
 
+// ==== WIDGET BUNDLE PATHS + SRI ====
+// Customers embed via <script src="https://<host>/widget/v<version>.js">. Each
+// version URL is immutable: the file lives at widget/dist/feedback-assistant.js
+// inside the container, but the public URL is pinned to a semver in package.json
+// so a customer pinning a version keeps getting the same bytes forever.
+const widgetVersion = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8')).version;
+const widgetDistDir = resolve(__dirname, '..', 'widget', 'dist');
+const widgetBundlePath = resolve(widgetDistDir, 'feedback-assistant.js');
+const html2canvasPath = resolve(widgetDistDir, 'html2canvas-v1.js');
+
+// SHA-384 of the bundle, computed once at boot from the exact bytes we serve.
+// Powers the SRI integrity attribute in the dashboard embed snippet — the same
+// process reads the same file it serves, so hash and bytes cannot diverge.
+let widgetIntegrity = null;
+try {
+  widgetIntegrity = 'sha384-' + crypto.createHash('sha384').update(readFileSync(widgetBundlePath)).digest('base64');
+} catch (e) {
+  logger.warn('Widget bundle missing at boot — SRI integrity unavailable', { error: e.message });
+}
+
 // ==== WIDGET INGEST API (mounted at /v1) ====
 app.route('/v1', createWidgetApi({ logger, db: rawDb }));
 
@@ -1427,35 +1447,42 @@ app.route('/api', createFeedbackDashboardApi({
   authMiddleware,
   csrfProtection,
   logger,
+  widgetVersion,
+  widgetIntegrity,
 }));
 
-// ==== WIDGET BUNDLE (served versioned, immutably cached) ====
-// Customers embed via <script src="https://<host>/widget/v0.1.0.js">. Each
-// version URL is immutable: the file lives at widget/dist/feedback-assistant.js
-// inside the container, but the public URL is pinned to a semver in package.json
-// so a customer pinning v0.1.0 keeps getting the same bytes forever (until they
-// upgrade). Add an SRI hash in the embed snippet after computing at deploy time.
-const widgetVersion = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8')).version;
-const widgetBundlePath = resolve(__dirname, '..', 'widget', 'dist', 'feedback-assistant.js');
-app.get(`/widget/v${widgetVersion}.js`, async (c) => {
+// ==== WIDGET ASSETS (served versioned, immutably cached) ====
+/**
+ * Serve a widget asset with immutable cache + cross-origin headers so it can be
+ * embedded as a <script> on any customer origin. The default secureHeaders
+ * middleware (skipped for /widget/*) sets CORP=same-origin which would block
+ * cross-origin <script> loading, so the headers are set explicitly here.
+ *
+ * @param {Context} c - Hono context
+ * @param {string} filePath - Absolute path to the asset on disk
+ * @returns {Promise<Response>} JS response, or 404 if the file is missing
+ */
+async function serveWidgetAsset(c, filePath) {
   try {
-    const buf = await promisify(readFile)(widgetBundlePath);
+    const buf = await promisify(readFile)(filePath);
     return new Response(buf, {
       headers: {
         'Content-Type': 'application/javascript; charset=utf-8',
         'Cache-Control': 'public, max-age=31536000, immutable',
         'X-Content-Type-Options': 'nosniff',
-        // Wide-open: this script is meant to be embedded on any customer origin.
-        // The default secureHeaders middleware sets CORP=same-origin which blocks
-        // cross-origin <script> loading. Override per-route.
         'Access-Control-Allow-Origin': '*',
         'Cross-Origin-Resource-Policy': 'cross-origin',
       },
     });
   } catch {
-    return c.text('Widget bundle missing', 404);
+    return c.text('Widget asset missing', 404);
   }
-});
+}
+
+app.get(`/widget/v${widgetVersion}.js`, (c) => serveWidgetAsset(c, widgetBundlePath));
+// html2canvas is lazy-loaded by the widget for DOM screenshots (no permission
+// prompt). Pinned filename, immutable — bump the suffix only on library upgrades.
+app.get('/widget/html2canvas-v1.js', (c) => serveWidgetAsset(c, html2canvasPath));
 
 // ==== STATIC FILE SERVING (Production) ====
 const staticDir = resolve(__dirname, config.staticDir);

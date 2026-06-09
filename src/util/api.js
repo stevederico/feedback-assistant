@@ -35,6 +35,9 @@ export const faApi = {
   deleteChangelog: (id) => call(`/changelog/${id}`, { method: 'DELETE' }),
   reorderChangelog: (projectId, items) =>
     call(`/projects/${projectId}/changelog/reorder`, { method: 'POST', body: JSON.stringify({ items }) }),
+
+  // Widget bundle SRI hash for the embed snippet ({ version, integrity }).
+  getWidgetIntegrity: () => call('/widget-integrity'),
 };
 
 /**

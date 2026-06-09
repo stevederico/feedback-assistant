@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build && node ./copy-html2canvas.mjs"
   },
   "devDependencies": {
+    "html2canvas": "1.4.1",
     "vite": "^7.1.10"
   }
 }

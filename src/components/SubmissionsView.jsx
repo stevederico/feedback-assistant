@@ -1,10 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Search, Archive, Mail, MailOpen, Trash2, ExternalLink, Image as ImageIcon } from '@stevederico/skateboard-ui/icons';
+import { Search, Archive, Mail, MailOpen, Trash2, ExternalLink, Image as ImageIcon, Inbox } from '@stevederico/skateboard-ui/icons';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
 import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
 import { Card } from '@stevederico/skateboard-ui/shadcn/ui/card';
+import {
+  Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription,
+} from '@stevederico/skateboard-ui/shadcn/ui/empty';
 import {
   Tabs, TabsList, TabsTrigger,
 } from '@stevederico/skateboard-ui/shadcn/ui/tabs';
@@ -17,6 +21,7 @@ import {
 } from '@stevederico/skateboard-ui/shadcn/ui/alert-dialog';
 import Header from '@stevederico/skateboard-ui/Header';
 import { faApi, screenshotUrl } from '../util/api.js';
+import { embedSnippet } from '../util/embed.js';
 import { useCurrentProject } from '../util/useCurrentProject.js';
 import ProjectPicker from './ProjectPicker.jsx';
 
@@ -50,6 +55,7 @@ const STATUS_BADGE = {
 };
 
 export default function SubmissionsView() {
+  const navigate = useNavigate();
   const { projects, current, currentId, setCurrentId, loading } = useCurrentProject();
 
   const [submissions, setSubmissions] = useState(null);
@@ -57,6 +63,10 @@ export default function SubmissionsView() {
   const [search, setSearch] = useState('');
   const [activeId, setActiveId] = useState(null);
   const [activeDetail, setActiveDetail] = useState(null);
+
+  // True when a status tab or search query is narrowing the list — used to tell
+  // "no results for this filter" apart from "this project has no feedback yet".
+  const isFiltered = status !== 'all' || search.trim() !== '';
 
   const fetchList = useCallback(() => {
     if (!currentId) { setSubmissions([]); return; }
@@ -144,10 +154,36 @@ export default function SubmissionsView() {
             <div className="text-sm text-muted-foreground">Loading…</div>
           )}
 
-          {submissions !== null && submissions.length === 0 && (
+          {submissions !== null && submissions.length === 0 && isFiltered && (
             <Card className="p-6 text-sm text-muted-foreground">
-              No submissions match. Once your widget posts feedback, it shows up here.
+              No submissions match your filters.
             </Card>
+          )}
+
+          {current && submissions !== null && submissions.length === 0 && !isFiltered && (
+            <div className="flex items-center justify-center py-8">
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon"><Inbox size={24} /></EmptyMedia>
+                  <EmptyTitle>No feedback yet</EmptyTitle>
+                  <EmptyDescription>
+                    Add the widget to your site to start collecting feedback for "{current.name}".
+                  </EmptyDescription>
+                </EmptyHeader>
+                <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto text-left max-w-full">
+                  <code>{embedSnippet(current.publicKey)}</code>
+                </pre>
+                <p className="text-xs text-muted-foreground text-left">
+                  This is a preview — the key is masked. Open the project to copy your full widget key.
+                </p>
+                <Button onClick={() => navigate('/app/projects')}>Set up widget</Button>
+                <ol className="text-xs text-muted-foreground text-left list-decimal pl-4 flex flex-col gap-1">
+                  <li>Open the project in Projects to get the full widget key.</li>
+                  <li>Paste the snippet before <code>&lt;/body&gt;</code> on your site.</li>
+                  <li>Submit a test message — it appears here.</li>
+                </ol>
+              </Empty>
+            </div>
           )}
 
           {submissions !== null && submissions.length > 0 && (

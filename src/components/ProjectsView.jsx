@@ -16,6 +16,7 @@ import { Card } from '@stevederico/skateboard-ui/shadcn/ui/card';
 import Header from '@stevederico/skateboard-ui/Header';
 import { faApi } from '../util/api.js';
 import { embedSnippet } from '../util/embed.js';
+import { copyToClipboard } from '../util/clipboard.js';
 import ProjectDetailsDialog from './ProjectDetailsDialog.jsx';
 
 function formatDate(ms) {
@@ -25,23 +26,22 @@ function formatDate(ms) {
   });
 }
 
-function copyToClipboard(text) {
-  navigator.clipboard?.writeText(text).then(
-    () => toast.success('Copied to clipboard'),
-    () => toast.error('Could not copy'),
-  );
-}
-
 export default function ProjectsView() {
   const [projects, setProjects] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [newKey, setNewKey] = useState(null); // { id, name, publicKey } returned on create
   const [detailsId, setDetailsId] = useState(null);
+  const [integrity, setIntegrity] = useState(null);
 
   function load() {
     faApi.listProjects().then((r) => setProjects(r.projects || [])).catch(() => setProjects([]));
   }
   useEffect(load, []);
+
+  // Fetch the widget bundle SRI hash once so the key-disclosure snippet pins it.
+  useEffect(() => {
+    faApi.getWidgetIntegrity().then((r) => setIntegrity(r || null)).catch(() => setIntegrity(null));
+  }, []);
 
   async function handleDelete(p) {
     try {
@@ -172,13 +172,13 @@ export default function ProjectsView() {
             {newKey?.publicKey && (
               <>
                 <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto">
-                  <code>{embedSnippet(newKey.publicKey)}</code>
+                  <code>{embedSnippet(newKey.publicKey, integrity)}</code>
                 </pre>
                 <div>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => copyToClipboard(embedSnippet(newKey.publicKey))}
+                    onClick={() => copyToClipboard(embedSnippet(newKey.publicKey, integrity))}
                   >
                     <Copy size={14} /> Copy snippet
                   </Button>

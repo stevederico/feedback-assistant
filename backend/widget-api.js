@@ -4,6 +4,7 @@
 //   POST /v1/submissions               — accepts feedback, persists row
 //   POST /v1/screenshots               — multipart upload, returns screenshotId
 //   GET  /v1/projects/:pk/changelog    — public, published-only, sort_order
+//   GET  /v1/projects/:pk/config       — public, per-project widget config (greeting)
 //
 // Auth model:
 //   - All POSTs require X-Project-Key: pk_*  (looked up against Projects table)
@@ -31,7 +32,7 @@ const MAX_MESSAGE_CHARS = 5000;
  */
 function findProjectByKey(db, publicKey) {
   if (!publicKey || !publicKey.startsWith('pk_')) return null;
-  return db.prepare('SELECT id, org_id, daily_budget FROM Projects WHERE public_key = ?').get(publicKey);
+  return db.prepare('SELECT id, org_id, daily_budget, greeting FROM Projects WHERE public_key = ?').get(publicKey);
 }
 
 export function createWidgetApi({ logger, db } = {}) {
@@ -166,6 +167,14 @@ export function createWidgetApi({ logger, db } = {}) {
     });
 
     return c.json({ screenshotId: storedId });
+  });
+
+  app.get('/projects/:pk/config', (c) => {
+    // Public per-project widget config. Mirrors the changelog endpoint's
+    // no-leak posture: unknown keys get {greeting:null} (200, not 404).
+    const project = findProjectByKey(db, c.req.param('pk'));
+    c.header('Cache-Control', 'public, max-age=60');
+    return c.json({ greeting: project?.greeting ?? null });
   });
 
   app.get('/projects/:pk/changelog', (c) => {
