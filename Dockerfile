@@ -6,6 +6,9 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY backend/package*.json ./backend/
+# Widget workspace package.json must be present so its build deps (html2canvas,
+# vendored into widget/dist) install with the root workspace install.
+COPY widget/package*.json ./widget/
 
 RUN npm install && cd backend && npm install
 
