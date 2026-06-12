@@ -327,6 +327,36 @@ function resolveEnvironmentVariables(str: string): string {
   });
 }
 
+/**
+ * Narrow an unknown value to a plain object keyed by string.
+ *
+ * Minimal runtime guard used to validate untrusted JSON (config files, JWT
+ * payloads) before reading properties, instead of casting parse results.
+ *
+ * @param value - Value to test
+ * @returns True if `value` is a non-null, non-array object
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Validate the parsed backend config shape: requires a `database` object with
+ * string `db`, `dbType`, and `connectionString`. `staticDir` is optional.
+ *
+ * @param value - Parsed JSON from config.json
+ * @returns True if `value` matches the expected config boundary shape
+ */
+function isRawConfig(value: unknown): value is { staticDir?: string; database: DatabaseConfig } {
+  if (!isRecord(value)) return false;
+  if (value.staticDir !== undefined && typeof value.staticDir !== 'string') return false;
+  const { database } = value;
+  if (!isRecord(database)) return false;
+  return typeof database.db === 'string'
+    && typeof database.dbType === 'string'
+    && typeof database.connectionString === 'string';
+}
+
 // Load and process configuration
 let config: BackendConfig;
 try {
@@ -334,7 +364,11 @@ try {
   const __dirname = dirname(__filename);
   const configPath = resolve(__dirname, './config.json');
   const configData = await promisify(readFile)(configPath);
-  const rawConfig = JSON.parse(configData.toString()) as { staticDir?: string; database: DatabaseConfig };
+  const parsedConfig: unknown = JSON.parse(configData.toString());
+  if (!isRawConfig(parsedConfig)) {
+    throw new Error('config.json does not match the expected shape');
+  }
+  const rawConfig = parsedConfig;
 
   // Resolve environment variables in configuration
   config = {
@@ -613,6 +647,19 @@ function jwtSign(payload: JwtPayload, secret: string): string {
 }
 
 /**
+ * Validate a decoded JWT payload shape: requires a string `userID` and a
+ * numeric `exp`. Used to narrow the parsed token body before use.
+ *
+ * @param value - Parsed JWT body
+ * @returns True if `value` matches JwtPayload
+ */
+function isJwtPayload(value: unknown): value is JwtPayload {
+  return isRecord(value)
+    && typeof value.userID === 'string'
+    && typeof value.exp === 'number';
+}
+
+/**
  * Verify an HS256 JWT and return its payload
  *
  * Compatible with tokens issued by jsonwebtoken (same algorithm, same secret).
@@ -635,7 +682,9 @@ function jwtVerify(token: string, secret: string): JwtPayload {
   if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
     throw new Error('Invalid signature');
   }
-  const payload = JSON.parse(Buffer.from(body, 'base64url').toString()) as JwtPayload;
+  const decoded: unknown = JSON.parse(Buffer.from(body, 'base64url').toString());
+  if (!isJwtPayload(decoded)) throw new Error('Invalid token');
+  const payload = decoded;
   if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) {
     const err = new Error('Token expired');
     err.name = 'TokenExpiredError';
