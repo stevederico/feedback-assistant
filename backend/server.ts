@@ -327,6 +327,21 @@ function resolveEnvironmentVariables(str: string): string {
   });
 }
 
+/**
+ * Runtime type guard for the raw config.json shape after JSON parsing.
+ *
+ * @param value - Unknown value parsed from config.json
+ * @returns True if the value has the expected staticDir/database shape
+ */
+function isRawConfig(value: unknown): value is { staticDir?: string; database: DatabaseConfig } {
+  if (typeof value !== 'object' || value === null || !('database' in value)) return false;
+  const { database } = value;
+  if (typeof database !== 'object' || database === null) return false;
+  return 'db' in database && typeof database.db === 'string'
+    && 'dbType' in database && typeof database.dbType === 'string'
+    && 'connectionString' in database && typeof database.connectionString === 'string';
+}
+
 // Load and process configuration
 let config: BackendConfig;
 try {
@@ -334,7 +349,11 @@ try {
   const __dirname = dirname(__filename);
   const configPath = resolve(__dirname, './config.json');
   const configData = await promisify(readFile)(configPath);
-  const rawConfig = JSON.parse(configData.toString()) as { staticDir?: string; database: DatabaseConfig };
+  const parsedConfig: unknown = JSON.parse(configData.toString());
+  if (!isRawConfig(parsedConfig)) {
+    throw new Error('Invalid config.json shape');
+  }
+  const rawConfig = parsedConfig;
 
   // Resolve environment variables in configuration
   config = {
@@ -613,6 +632,18 @@ function jwtSign(payload: JwtPayload, secret: string): string {
 }
 
 /**
+ * Runtime type guard for a decoded JWT payload.
+ *
+ * @param value - Unknown value parsed from the JWT body
+ * @returns True if the value has the expected userID/exp shape
+ */
+function isJwtPayload(value: unknown): value is JwtPayload {
+  if (typeof value !== 'object' || value === null) return false;
+  return 'userID' in value && typeof value.userID === 'string'
+    && 'exp' in value && typeof value.exp === 'number';
+}
+
+/**
  * Verify an HS256 JWT and return its payload
  *
  * Compatible with tokens issued by jsonwebtoken (same algorithm, same secret).
@@ -635,7 +666,11 @@ function jwtVerify(token: string, secret: string): JwtPayload {
   if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
     throw new Error('Invalid signature');
   }
-  const payload = JSON.parse(Buffer.from(body, 'base64url').toString()) as JwtPayload;
+  const decoded: unknown = JSON.parse(Buffer.from(body, 'base64url').toString());
+  if (!isJwtPayload(decoded)) {
+    throw new Error('Invalid token');
+  }
+  const payload = decoded;
   if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) {
     const err = new Error('Token expired');
     err.name = 'TokenExpiredError';
