@@ -11,10 +11,10 @@ import { compare as legacyBcryptCompare } from "./vendor/legacy-bcrypt.js";
 import crypto from "crypto";
 
 import { databaseManager } from "./adapters/manager.ts";
-import { createWidgetApi } from "./widget-api.js";
-import { bootstrapFeedbackSchema } from "./feedback-schema.js";
-import { createFeedbackDashboardApi } from "./feedback-dashboard-api.js";
-import { ensureUploadsDir } from "./feedback-uploads.js";
+import { createWidgetApi } from "./widget-api.ts";
+import { bootstrapFeedbackSchema } from "./feedback-schema.ts";
+import { createFeedbackDashboardApi } from "./feedback-dashboard-api.ts";
+import { ensureUploadsDir } from "./feedback-uploads.ts";
 import type { DatabaseSync } from 'node:sqlite';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

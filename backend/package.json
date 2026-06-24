@@ -9,8 +9,8 @@
     "scripts": {
         "start": "node server.ts",
         "dev": "node --watch server.ts",
-        "test": "node --test server.test.ts widget-api.test.js",
-        "test:watch": "node --test --watch server.test.ts widget-api.test.js"
+        "test": "node --test server.test.ts widget-api.test.ts",
+        "test:watch": "node --test --watch server.test.ts widget-api.test.ts"
     },
     "dependencies": {
         "@hono/node-server": "^1.14.1",

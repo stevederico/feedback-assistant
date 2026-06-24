@@ -7,6 +7,7 @@ import { createReadStream, existsSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import type { Logger } from './types.ts';
 
 // Default is relative to the backend process CWD, which is the backend/ dir
 // (npm runs the workspace script with CWD = backend/). On Railway the volume
@@ -18,13 +19,13 @@ const MAX_SCREENSHOT_BYTES = parseInt(
 );
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png']);
 
-let uploadsDirCache = null;
+let uploadsDirCache: string | null = null;
 
 /**
  * Resolve the uploads dir (env override or default), ensuring it exists.
  * Idempotent; cached after first call.
  */
-export async function ensureUploadsDir() {
+export async function ensureUploadsDir(): Promise<string> {
   if (uploadsDirCache) return uploadsDirCache;
   const dir = path.resolve(process.env.UPLOADS_DIR || DEFAULT_UPLOADS_DIR);
   await mkdir(dir, { recursive: true });
@@ -32,15 +33,18 @@ export async function ensureUploadsDir() {
   return dir;
 }
 
-export function getUploadsDir() {
+/** Current uploads dir (resolved from env or default), without creating it. */
+export function getUploadsDir(): string {
   return uploadsDirCache || path.resolve(process.env.UPLOADS_DIR || DEFAULT_UPLOADS_DIR);
 }
 
-export function getMaxScreenshotBytes() {
+/** Maximum allowed screenshot size in bytes. */
+export function getMaxScreenshotBytes(): number {
   return MAX_SCREENSHOT_BYTES;
 }
 
-export function isAllowedMime(mime) {
+/** True if the given MIME type is an allowed screenshot format. */
+export function isAllowedMime(mime: string): boolean {
   return ALLOWED_MIME.has((mime || '').toLowerCase());
 }
 
@@ -48,7 +52,7 @@ export function isAllowedMime(mime) {
  * Save a Buffer to disk under a fresh UUID. Returns the id used.
  * Throws on filesystem failure.
  */
-export async function saveScreenshotFile(buffer) {
+export async function saveScreenshotFile(buffer: Buffer): Promise<string> {
   const dir = await ensureUploadsDir();
   const id = randomUUID();
   await writeFile(path.join(dir, id), buffer);
@@ -59,7 +63,11 @@ export async function saveScreenshotFile(buffer) {
  * Build a streaming Response for a stored screenshot.
  * Returns null if the file is missing on disk.
  */
-export function streamScreenshotResponse(id, contentType, sizeBytes) {
+export function streamScreenshotResponse(
+  id: string,
+  contentType: string,
+  sizeBytes: number
+): Response | null {
   const dir = getUploadsDir();
   const filePath = path.join(dir, id);
   if (!existsSync(filePath)) return null;
@@ -78,14 +86,17 @@ export function streamScreenshotResponse(id, contentType, sizeBytes) {
 /**
  * Remove a screenshot file from disk. Best-effort; logs failure but never throws.
  */
-export async function deleteScreenshotFile(id, logger) {
+export async function deleteScreenshotFile(id: string, logger?: Logger): Promise<void> {
   const dir = getUploadsDir();
   const filePath = path.join(dir, id);
   try {
     await unlink(filePath);
   } catch (err) {
-    if (err?.code !== 'ENOENT') {
-      logger?.warn?.('screenshot unlink failed', { id, error: err.message });
+    // Narrow the unknown error to read its code/message without casts.
+    const code = err instanceof Error && 'code' in err ? err.code : undefined;
+    if (code !== 'ENOENT') {
+      const message = err instanceof Error ? err.message : String(err);
+      logger?.warn?.('screenshot unlink failed', { id, error: message });
     }
   }
 }

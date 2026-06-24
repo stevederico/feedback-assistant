@@ -6,13 +6,15 @@
 //   Orgs, Projects, Submissions, Screenshots, Changelog, DailyIngest
 // Plus: ALTER Users ADD COLUMN org_id (nullable for existing rows).
 
+import type { DatabaseSync } from 'node:sqlite';
+
 /**
  * Add org_id column to Users if missing. SQLite has no IF NOT EXISTS for
  * ALTER TABLE, so probe pragma first.
  *
- * @param {Database} db - node:sqlite DatabaseSync instance
+ * @param db node:sqlite DatabaseSync instance
  */
-function ensureUsersOrgIdColumn(db) {
+function ensureUsersOrgIdColumn(db: DatabaseSync): void {
   const cols = db.prepare('PRAGMA table_info(Users)').all();
   const hasOrgId = cols.some((c) => c.name === 'org_id');
   if (!hasOrgId) {
@@ -21,11 +23,11 @@ function ensureUsersOrgIdColumn(db) {
 }
 
 /**
- * Create feedback-assistant tables + indexes if missing.
+ * Create feedback-assistant tables + indexes if missing (idempotent).
  *
- * @param {Database} db - node:sqlite DatabaseSync instance
+ * @param db node:sqlite DatabaseSync instance (the raw bound database handle)
  */
-export function bootstrapFeedbackSchema(db) {
+export function bootstrapFeedbackSchema(db: DatabaseSync): void {
   ensureUsersOrgIdColumn(db);
 
   db.exec(`
