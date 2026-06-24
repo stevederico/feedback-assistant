@@ -1,6 +1,9 @@
 # Feedback Assistant — To Do
 
-Shipped 3.2.1 → 3.3.2 (no-dash = done, - dash = remaining).
+Shipped 3.2.1 → 3.4.0 (no-dash = done, - dash = remaining).
+
+## Post-skateboard-4 verification (before deploy)
+- Live auth test: JWT byte-compat, legacy-bcrypt login, scrypt-rehash against a real prior token (4.0.0 upgrade + TS conversion are build/test-verified only, not runtime-exercised)
 
 ## Deploy
 Build widget bundle on `npm run build` (wired; vendors html2canvas)
