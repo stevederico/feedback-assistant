@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Search, Archive, Mail, MailOpen, Trash2, ExternalLink, Image as ImageIcon, Inbox } from '@stevederico/skateboard-ui/icons';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';

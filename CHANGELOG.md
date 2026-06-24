@@ -1,3 +1,10 @@
+3.4.0
+
+  Upgrade skateboard 4.0.0
+  Upgrade skateboard-ui 4.10.0
+  Extract backend lib modules
+  Drop react-router-dom
+
 3.3.2
 
   Fix widget global API
