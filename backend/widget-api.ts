@@ -1,4 +1,4 @@
-// Widget ingest API. Mounted at /v1 from server.js.
+// Widget ingest API. Mounted at /v1 from server.ts.
 //
 // Endpoints:
 //   POST /v1/submissions               — accepts feedback, persists row
@@ -15,28 +15,95 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { randomUUID } from 'node:crypto';
-import { ipRateLimit, enforceProjectBudget } from './feedback-rate-limit.js';
+import type { DatabaseSync } from 'node:sqlite';
+import { ipRateLimit, enforceProjectBudget } from './feedback-rate-limit.ts';
 import {
   saveScreenshotFile,
   isAllowedMime,
   getMaxScreenshotBytes,
-} from './feedback-uploads.js';
+} from './feedback-uploads.ts';
+import type { Logger } from './types.ts';
 
 const MAX_MESSAGE_CHARS = 5000;
 
-/**
- * Resolve a project row by its public key, or null.
- *
- * @param {Database} db
- * @param {string} publicKey
- */
-function findProjectByKey(db, publicKey) {
-  if (!publicKey || !publicKey.startsWith('pk_')) return null;
-  return db.prepare('SELECT id, org_id, daily_budget, greeting FROM Projects WHERE public_key = ?').get(publicKey);
+/** A project row resolved from its public key. */
+interface ProjectKeyRow {
+  id: string;
+  org_id: string;
+  daily_budget: number;
+  greeting: string | null;
 }
 
-export function createWidgetApi({ logger, db } = {}) {
-  const log = logger || { info: console.log, warn: console.warn, error: console.error };
+/** A single node:sqlite result row (column name -> output value). */
+type Row = Record<string, unknown>;
+
+/** Narrow an unknown JSON value to a plain object (key -> unknown). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Read a string column off a node:sqlite row without an `as` cast. */
+function str(row: Row, column: string): string {
+  const value = row[column];
+  if (typeof value === 'string') return value;
+  throw new Error(`expected string column "${column}"`);
+}
+
+/** Read a nullable string column (null/undefined pass through as null). */
+function strOrNull(row: Row, column: string): string | null {
+  const value = row[column];
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value;
+  throw new Error(`expected string|null column "${column}"`);
+}
+
+/** Read a numeric column (bigint coerced to number); throws if non-numeric. */
+function num(row: Row, column: string): number {
+  const value = row[column];
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  throw new Error(`expected number column "${column}"`);
+}
+
+/**
+ * Resolve a project row by its public key, or null.
+ */
+function findProjectByKey(db: DatabaseSync, publicKey: string | undefined): ProjectKeyRow | null {
+  if (!publicKey || !publicKey.startsWith('pk_')) return null;
+  const row = db.prepare('SELECT id, org_id, daily_budget, greeting FROM Projects WHERE public_key = ?').get(publicKey);
+  if (!row) return null;
+  return {
+    id: str(row, 'id'),
+    org_id: str(row, 'org_id'),
+    daily_budget: num(row, 'daily_budget'),
+    greeting: strOrNull(row, 'greeting'),
+  };
+}
+
+/** Extract a human-readable message from an unknown thrown value. */
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** Truncate a string-ish value to a max length, or null when not a string. */
+function truncate(value: unknown, max: number): string | null {
+  return typeof value === 'string' ? value.slice(0, max) : null;
+}
+
+/** Options for {@link createWidgetApi}. */
+export interface WidgetApiOptions {
+  logger?: Logger;
+  db: DatabaseSync;
+}
+
+/** Build the widget ingest Hono sub-app (mounted at /v1). */
+export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
+  const log: Logger = logger || {
+    info: (message, meta) => console.log(message, meta),
+    warn: (message, meta) => console.warn(message, meta),
+    error: (message, meta) => console.error(message, meta),
+    debug: (message, meta) => console.debug(message, meta),
+  };
   const app = new Hono();
 
   // Wide-open CORS for ingest — widgets run on customer origins.
@@ -64,32 +131,32 @@ export function createWidgetApi({ logger, db } = {}) {
     const overBudget = enforceProjectBudget(db, project.id, project.daily_budget, c);
     if (overBudget) return overBudget;
 
-    const body = await c.req.json().catch(() => null);
-    if (!body) return c.json({ error: 'invalid json' }, 400);
+    const body: unknown = await c.req.json().catch(() => null);
+    if (!isRecord(body)) return c.json({ error: 'invalid json' }, 400);
+    const input = body;
 
-    const message = (body.message ?? '').trim();
+    const message = (typeof input.message === 'string' ? input.message : '').trim();
     if (!message) return c.json({ error: 'message required' }, 400);
     if (message.length > MAX_MESSAGE_CHARS) {
       return c.json({ error: `message must be ${MAX_MESSAGE_CHARS} characters or fewer` }, 413);
     }
 
     // Truncate or null incidental fields to keep storage bounded.
-    const truncate = (v, max) => (typeof v === 'string' ? v.slice(0, max) : null);
-    const url = truncate(body.url, 2000);
-    const userAgent = truncate(body.userAgent, 500);
-    const appVersion = truncate(body.appVersion, 64);
-    const endUserId = truncate(body.endUserId, 200);
-    const endUserName = truncate(body.endUserName, 200);
-    const endUserEmail = truncate(body.endUserEmail, 320);
+    const url = truncate(input.url, 2000);
+    const userAgent = truncate(input.userAgent, 500);
+    const appVersion = truncate(input.appVersion, 64);
+    const endUserId = truncate(input.endUserId, 200);
+    const endUserName = truncate(input.endUserName, 200);
+    const endUserEmail = truncate(input.endUserEmail, 320);
 
     // Validate screenshotId, if provided, actually belongs to this project.
-    let screenshotId = null;
-    if (typeof body.screenshotId === 'string' && body.screenshotId) {
+    let screenshotId: string | null = null;
+    if (typeof input.screenshotId === 'string' && input.screenshotId) {
       const s = db
         .prepare('SELECT id FROM Screenshots WHERE id = ? AND project_id = ?')
-        .get(body.screenshotId, project.id);
+        .get(input.screenshotId, project.id);
       if (!s) return c.json({ error: 'screenshotId not found for this project' }, 400);
-      screenshotId = s.id;
+      screenshotId = str(s, 'id');
     }
 
     const id = randomUUID();
@@ -122,7 +189,7 @@ export function createWidgetApi({ logger, db } = {}) {
     if (!project) return c.json({ error: 'invalid or missing X-Project-Key' }, 401);
 
     // Parse multipart. Hono returns a File-like object.
-    let file;
+    let file: File | string | null = null;
     try {
       const form = await c.req.formData();
       file = form.get('file');
@@ -145,11 +212,11 @@ export function createWidgetApi({ logger, db } = {}) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    let storedId;
+    let storedId: string;
     try {
       storedId = await saveScreenshotFile(buffer);
     } catch (e) {
-      log.error('screenshot write failed', { error: e.message });
+      log.error('screenshot write failed', { error: errorMessage(e) });
       return c.json({ error: 'storage error' }, 500);
     }
 
@@ -194,10 +261,10 @@ export function createWidgetApi({ logger, db } = {}) {
 
     return c.json({
       changelog: rows.map((r) => ({
-        id: r.id,
-        title: r.title,
-        body: r.body_md,
-        publishedAt: r.published_at,
+        id: str(r, 'id'),
+        title: str(r, 'title'),
+        body: str(r, 'body_md'),
+        publishedAt: num(r, 'published_at'),
       })),
     });
   });

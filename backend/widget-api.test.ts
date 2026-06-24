@@ -16,15 +16,35 @@ import { dirname } from 'node:path';
 process.env.UPLOADS_DIR = resolve(tmpdir(), `fa-test-uploads-${process.pid}`);
 
 import { DatabaseSync } from 'node:sqlite';
-import { bootstrapFeedbackSchema } from './feedback-schema.js';
-import { createWidgetApi } from './widget-api.js';
-import { createFeedbackDashboardApi } from './feedback-dashboard-api.js';
+import type { Hono, MiddlewareHandler } from 'hono';
+import { bootstrapFeedbackSchema } from './feedback-schema.ts';
+import { createWidgetApi } from './widget-api.ts';
+import { createFeedbackDashboardApi } from './feedback-dashboard-api.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PK = 'pk_testkey0000000000000000000000aa';
 const OTHER_PK = 'pk_otherkey0000000000000000000000bb';
 
-let app;
+let app: Hono;
+let testDb: DatabaseSync;
+
+/** Read a string column off a node:sqlite row without an `as` cast. */
+function stringColumn(row: Record<string, unknown> | undefined, column: string): string {
+  const value = row?.[column];
+  if (typeof value === 'string') return value;
+  throw new Error(`expected string column "${column}"`);
+}
+
+/** True when an unknown value is a plain object (key -> unknown). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Narrow an unknown JSON response body to a plain object. */
+function asBody(value: unknown): Record<string, unknown> {
+  if (isRecord(value)) return value;
+  throw new Error('expected a JSON object response body');
+}
 
 before(() => {
   const db = new DatabaseSync(':memory:');
@@ -42,22 +62,22 @@ before(() => {
     'INSERT INTO Projects (id, org_id, name, public_key, daily_budget, greeting, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
   ).run('proj2', 'org2', 'Proj Two', OTHER_PK, 1000, null, now);
 
-  app = createWidgetApi({ logger: { info() {}, warn() {}, error() {} }, db });
-  app._db = db;
+  app = createWidgetApi({ logger: { info() {}, warn() {}, error() {}, debug() {} }, db });
+  testDb = db;
 });
 
 test('GET /v1/projects/:pk/widget returns greeting for a valid key', async () => {
   const res = await app.request(`/projects/${PK}/widget`);
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('cache-control'), 'public, max-age=60');
-  const body = await res.json();
+  const body = asBody(await res.json());
   assert.equal(body.greeting, 'Hey there!');
 });
 
 test('GET /v1/projects/:pk/widget returns null greeting for an unknown key (no leak)', async () => {
   const res = await app.request('/projects/pk_does_not_exist/widget');
   assert.equal(res.status, 200);
-  const body = await res.json();
+  const body = asBody(await res.json());
   assert.equal(body.greeting, null);
 });
 
@@ -70,7 +90,7 @@ test('POST /v1/screenshots then /v1/submissions persists screenshot_id', async (
     body: form,
   });
   assert.equal(up.status, 200);
-  const { screenshotId } = await up.json();
+  const { screenshotId } = asBody(await up.json());
   assert.ok(screenshotId);
 
   const sub = await app.request('/submissions', {
@@ -79,10 +99,11 @@ test('POST /v1/screenshots then /v1/submissions persists screenshot_id', async (
     body: JSON.stringify({ message: 'with shot', screenshotId }),
   });
   assert.equal(sub.status, 200);
-  const { submissionId } = await sub.json();
+  const { submissionId } = asBody(await sub.json());
+  assert.equal(typeof submissionId, 'string');
 
-  const row = app._db.prepare('SELECT screenshot_id FROM Submissions WHERE id = ?').get(submissionId);
-  assert.equal(row.screenshot_id, screenshotId);
+  const row = testDb.prepare('SELECT screenshot_id FROM Submissions WHERE id = ?').get(String(submissionId));
+  assert.equal(stringColumn(row, 'screenshot_id'), screenshotId);
 });
 
 test('POST /v1/submissions rejects a screenshotId from another project', async () => {
@@ -94,7 +115,7 @@ test('POST /v1/submissions rejects a screenshotId from another project', async (
     headers: { 'X-Project-Key': OTHER_PK },
     body: form,
   });
-  const { screenshotId } = await up.json();
+  const { screenshotId } = asBody(await up.json());
 
   const sub = await app.request('/submissions', {
     method: 'POST',
@@ -114,18 +135,18 @@ test('POST /v1/submissions requires a valid X-Project-Key', async () => {
 });
 
 test('GET /api/widget-integrity returns version + integrity', async () => {
-  const passthrough = (c, next) => next();
+  const passthrough: MiddlewareHandler = (_c, next) => next();
   const dash = createFeedbackDashboardApi({
-    db: app._db,
+    db: testDb,
     authMiddleware: passthrough,
     csrfProtection: passthrough,
-    logger: { info() {}, warn() {}, error() {} },
+    logger: { info() {}, warn() {}, error() {}, debug() {} },
     widgetVersion: '9.9.9',
     widgetIntegrity: 'sha384-deadbeef',
   });
   const res = await dash.request('/widget-integrity');
   assert.equal(res.status, 200);
-  const body = await res.json();
+  const body = asBody(await res.json());
   assert.equal(body.version, '9.9.9');
   assert.equal(body.integrity, 'sha384-deadbeef');
 });
