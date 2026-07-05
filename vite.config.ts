@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import type { ESBuildOptions } from 'vite';
 import react from '@vitejs/plugin-react-swc';
@@ -99,5 +100,22 @@ export default defineConfig({
       ignored: ['**/node_modules/**', '**/.git/**']
     }
   },
-  logLevel: 'error'
+  logLevel: 'error',
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.js'],
+    include: ['src/**/*.test.{js,jsx}'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{js,jsx}'],
+      exclude: ['src/**/*.test.{js,jsx}', 'src/test/**'],
+      thresholds: {
+        lines: 100,
+        functions: 100,
+        branches: 100,
+        statements: 100
+      }
+    }
+  }
 });
