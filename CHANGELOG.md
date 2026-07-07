@@ -1,3 +1,7 @@
+3.5.0
+
+  Ignore runtime databases dir
+
 3.4.0
 
   Upgrade skateboard 4.0.0
