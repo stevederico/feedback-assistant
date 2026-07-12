@@ -184,7 +184,7 @@ export default function ChangelogView() {
       toast.success('Entry created');
       setCreating(false);
       load();
-    } catch (e) { toast.error((e as Error)?.message || 'Create failed'); }
+    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Create failed'); }
     finally { setSubmitting(false); }
   }
 
@@ -196,7 +196,7 @@ export default function ChangelogView() {
       toast.success('Entry updated');
       setEditing(null);
       load();
-    } catch (e) { toast.error((e as Error)?.message || 'Update failed'); }
+    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Update failed'); }
     finally { setSubmitting(false); }
   }
 
@@ -204,7 +204,7 @@ export default function ChangelogView() {
     try {
       await faApi.updateChangelog(entry.id, { publish: !entry.publishedAt });
       load();
-    } catch (e) { toast.error((e as Error)?.message || 'Toggle failed'); }
+    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Toggle failed'); }
   }
 
   async function handleDelete(entry: ChangelogEntry) {
@@ -212,7 +212,7 @@ export default function ChangelogView() {
       await faApi.deleteChangelog(entry.id);
       toast.success('Entry deleted');
       load();
-    } catch (e) { toast.error((e as Error)?.message || 'Delete failed'); }
+    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Delete failed'); }
   }
 
   async function handleDragEnd(event: DragEndEvent) {

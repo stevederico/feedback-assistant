@@ -62,7 +62,7 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
       toast.success('Settings saved');
       onChanged?.();
     } catch (e) {
-      toast.error((e as Error)?.message || 'Save failed');
+      toast.error((e instanceof Error ? e.message : String(e)) || 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -76,7 +76,7 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
       onChanged?.();
       toast.success('Key rotated — old key is now invalid');
     } catch (e) {
-      toast.error((e as Error)?.message || 'Rotate failed');
+      toast.error((e instanceof Error ? e.message : String(e)) || 'Rotate failed');
     }
   }
 

@@ -65,7 +65,7 @@ export default function ProjectsView() {
       toast.success(`Deleted "${p.name}"`);
       load();
     } catch (e) {
-      toast.error((e as Error)?.message || 'Delete failed');
+      toast.error((e instanceof Error ? e.message : String(e)) || 'Delete failed');
     }
   }
 
@@ -75,7 +75,7 @@ export default function ProjectsView() {
       setNewKey({ id: p.id, name: p.name, publicKey: res.publicKey, rotated: true });
       load();
     } catch (e) {
-      toast.error((e as Error)?.message || 'Rotate failed');
+      toast.error((e instanceof Error ? e.message : String(e)) || 'Rotate failed');
     }
   }
 
@@ -239,7 +239,7 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
       onCreated(p);
       setName(''); setOrigins(''); setGreeting('');
     } catch (err) {
-      toast.error((err as Error)?.message || 'Create failed');
+      toast.error((err instanceof Error ? err.message : String(err)) || 'Create failed');
     } finally {
       setSubmitting(false);
     }

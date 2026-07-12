@@ -119,7 +119,7 @@ export default function SubmissionsView() {
       if (activeDetail && !activeDetail.error && activeDetail.id === id) {
         setActiveDetail({ ...activeDetail, status: newStatus });
       }
-    } catch (e) { toast.error((e as Error)?.message || 'Update failed'); }
+    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Update failed'); }
   }
 
   async function handleDelete(id: string) {
@@ -128,7 +128,7 @@ export default function SubmissionsView() {
       toast.success('Submission deleted');
       setActiveId(null);
       fetchList();
-    } catch (e) { toast.error((e as Error)?.message || 'Delete failed'); }
+    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Delete failed'); }
   }
 
   return (
