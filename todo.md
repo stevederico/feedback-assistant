@@ -45,3 +45,4 @@ Project picker visible only when >1 project (code + data layer verified)
 - Per-project retention policy (default 90 days) + auto-purge job
 - Short-lived HMAC URLs for external screenshot sharing
 - File cleanup on project delete (DB rows cascade; screenshot files not yet unlinked)
+- Loom-style guided walkthrough: record with face-in-corner, guides users through the product
