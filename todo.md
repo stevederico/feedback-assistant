@@ -41,7 +41,8 @@ Shipped 3.2.1 → 3.6.0. Checkboxes: `[x]` done, `[ ]` remaining.
 
 ## Backlog (post-MVP)
 - [ ] Enforce per-project origin allowlist on `/v1` (today hygiene-only; support `*.domain` like BXSupport)
-- [ ] LLM support: optional Grok draft/reply assist on submissions (`XAI_API_KEY`, not auto-triage marketing vapor)
+- [ ] Widget support contact: show project/owner name + email from public config (like BXSupport `/public/config`)
+- [ ] LLM support (Grok via `XAI_API_KEY`): draft/reply assist on submissions; includes visitor id + message history in the widget so assist has a real thread (not auto-triage marketing vapor)
 - [ ] Roadmap tab in widget with drag-to-rank (SortableJS, touch-friendly)
 - [ ] GitHub issue creation from submission detail
 - [ ] Email digest of new submissions for org admins
