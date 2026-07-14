@@ -72,17 +72,33 @@
 .fa-header {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--fa-border);
 }
-/* Segmented control is the modal title row — left-floated. */
+/* Segmented control — left; capture tools — upper right. */
 .fa-tabs {
   display: inline-flex;
   background: #f1f5f9;
   border-radius: 6px;
   padding: 2px;
   gap: 2px;
+}
+.fa-header-tools {
+  display: none;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+.fa-header-tools[data-visible="true"] {
+  display: inline-flex;
+}
+.fa-btn-icon {
+  padding: 0.35rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  justify-content: center;
 }
 .fa-tab {
   font-size: 0.8125rem;

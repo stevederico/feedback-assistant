@@ -140,12 +140,23 @@ function iconMonitor() {
 }
 
 function buildPopover() {
-  // Picker replaces the old "Feedback" title — left-floated, Feedback first.
+  // Picker left; capture tools upper-right (feedback tab only).
   const tabs = el('div', { class: 'fa-tabs', role: 'tablist', 'aria-label': 'Feedback views' },
     el('button', { class: 'fa-tab', 'data-tab': 'feedback', 'data-active': 'true', role: 'tab', 'aria-selected': 'true' }, 'Feedback'),
     el('button', { class: 'fa-tab', 'data-tab': 'changelog', 'data-active': 'false', role: 'tab', 'aria-selected': 'false' }, "What's New"),
   );
-  const header = el('div', { class: 'fa-header' }, tabs);
+
+  const shotBtn = el('button', {
+    class: 'fa-btn fa-btn-icon fa-screenshot-btn', type: 'button', 'aria-label': 'Attach screenshot',
+    title: 'Screenshot',
+  }, iconCamera());
+  const shareBtn = el('button', {
+    class: 'fa-btn fa-btn-icon fa-sharescreen-btn', type: 'button', 'aria-label': 'Share screen',
+    title: 'Share screen (asks permission)',
+  }, iconMonitor());
+  const headerTools = el('div', { class: 'fa-header-tools', 'data-visible': 'true' }, shotBtn, shareBtn);
+
+  const header = el('div', { class: 'fa-header' }, tabs, headerTools);
 
   const changelogPanel = el('div', { class: 'fa-panel fa-panel-changelog', 'data-panel': 'changelog', 'data-active': 'false' },
     el('div', { class: 'fa-changelog-section' },
@@ -158,20 +169,10 @@ function buildPopover() {
     placeholder: "What's on your mind? Bugs, ideas, anything…",
   });
 
-  const shotBtn = el('button', {
-    class: 'fa-btn fa-screenshot-btn', type: 'button', 'aria-label': 'Attach screenshot',
-  }, iconCamera(), document.createTextNode('Screenshot'));
-  const shareBtn = el('button', {
-    class: 'fa-btn fa-sharescreen-btn', type: 'button', 'aria-label': 'Share screen',
-    title: 'Capture the screen (asks permission)',
-  }, iconMonitor(), document.createTextNode('Share screen'));
-
   const feedbackPanel = el('div', { class: 'fa-panel', 'data-panel': 'feedback', 'data-active': 'true' },
     textarea,
     el('div', { class: 'fa-screenshot-slot' }),
     el('div', { class: 'fa-actions' },
-      shotBtn,
-      shareBtn,
       el('button', { class: 'fa-btn fa-btn-primary fa-send-btn', type: 'button', disabled: true }, 'Send'),
     ),
   );
@@ -252,6 +253,10 @@ function renderTabs() {
   popover.querySelectorAll('.fa-panel').forEach((panel) => {
     panel.dataset.active = panel.dataset.panel === STATE.ui.activeTab ? 'true' : 'false';
   });
+  const tools = popover.querySelector('.fa-header-tools');
+  if (tools) {
+    tools.dataset.visible = STATE.ui.activeTab === 'feedback' ? 'true' : 'false';
+  }
 }
 
 /**

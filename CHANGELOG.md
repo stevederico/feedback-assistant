@@ -1,3 +1,7 @@
+3.11.0
+
+  Capture tools in header
+
 3.10.0
 
   Rename projects to apps
