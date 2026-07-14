@@ -236,10 +236,14 @@ export default function ChangelogView() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <Header title="Changelog">
-        {projects && projects.length > 1 && (
-          <ProjectPicker projects={projects} currentId={currentId} onChange={setCurrentId} />
-        )}
+      <Header title={current ? `Changelog · ${current.name}` : 'Changelog'}>
+        {/* Always show project scope — changelog is per-project, never org-wide. */}
+        <ProjectPicker
+          projects={projects}
+          currentId={currentId}
+          onChange={setCurrentId}
+          alwaysShow
+        />
         <Dialog open={creating} onOpenChange={setCreating}>
           <DialogTrigger render={<Button size="sm" disabled={!current} />}>
             <Plus size={16} /> New entry
@@ -248,7 +252,9 @@ export default function ChangelogView() {
             <DialogHeader>
               <DialogTitle>New changelog entry</DialogTitle>
               <DialogDescription>
-                Shows in the widget's What's New tab. Drafts are hidden until published.
+                {current
+                  ? `Adds to "${current.name}" only. Shows in that project's widget What's New tab. Drafts stay hidden until published.`
+                  : "Shows in the widget's What's New tab. Drafts are hidden until published."}
               </DialogDescription>
             </DialogHeader>
             <EntryForm
@@ -268,7 +274,8 @@ export default function ChangelogView() {
 
       {current && entries !== null && entries.length === 0 && (
         <Card className="p-6 text-sm text-muted-foreground">
-          No entries yet. Create one to show up in the widget's What's New tab.
+          No entries for "{current.name}" yet. Create one to show up in that project's
+          widget What's New tab.
         </Card>
       )}
 
@@ -296,6 +303,9 @@ export default function ChangelogView() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit entry</DialogTitle>
+            {current && (
+              <DialogDescription>Project: {current.name}</DialogDescription>
+            )}
           </DialogHeader>
           {editing && (
             <EntryForm

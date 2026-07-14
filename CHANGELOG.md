@@ -2,6 +2,7 @@
 
   Show project on submissions
   All-projects inbox filter
+  Changelog always project-scoped
 
 3.5.0
 
