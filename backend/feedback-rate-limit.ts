@@ -3,8 +3,8 @@
 // Two layers, applied in order:
 //   1. Per-IP token bucket (in-memory). 60 req/min, refills 1/sec. Defense
 //      against a single host flooding the API.
-//   2. Per-project daily budget (DB-backed, DailyIngest table). Enforces
-//      per-tenant ceilings configured on Projects.daily_budget.
+//   2. Per-app daily budget (DB-backed, DailyIngest table). Enforces
+//      per-tenant ceilings configured on Apps.daily_budget.
 //
 // The IP bucket is the same shape as skateboard's login-lockout map in
 // server.ts — in-memory Map, periodic cleanup of idle entries.
@@ -126,47 +126,47 @@ function numberColumn(
 }
 
 /**
- * Atomically bump the DailyIngest counter for a project and return the new count.
+ * Atomically bump the DailyIngest counter for an app and return the new count.
  * Increments first, then the caller decides whether to reject.
  *
  * @returns new daily count after increment
  */
-export function bumpDailyIngest(db: DatabaseSync, projectId: string): number {
+export function bumpDailyIngest(db: DatabaseSync, appId: string): number {
   const day = utcDayKey();
   // node:sqlite RETURNING support is available in modern Node; fall back
   // gracefully if not (do a follow-up SELECT).
   try {
     const row = db.prepare(
-      `INSERT INTO DailyIngest (project_id, day_utc, count) VALUES (?, ?, 1)
-       ON CONFLICT(project_id, day_utc) DO UPDATE SET count = count + 1
+      `INSERT INTO DailyIngest (app_id, day_utc, count) VALUES (?, ?, 1)
+       ON CONFLICT(app_id, day_utc) DO UPDATE SET count = count + 1
        RETURNING count`
-    ).get(projectId, day);
+    ).get(appId, day);
     return numberColumn(row, 'count', 1);
   } catch {
     db.prepare(
-      `INSERT INTO DailyIngest (project_id, day_utc, count) VALUES (?, ?, 1)
-       ON CONFLICT(project_id, day_utc) DO UPDATE SET count = count + 1`
-    ).run(projectId, day);
+      `INSERT INTO DailyIngest (app_id, day_utc, count) VALUES (?, ?, 1)
+       ON CONFLICT(app_id, day_utc) DO UPDATE SET count = count + 1`
+    ).run(appId, day);
     const r = db.prepare(
-      'SELECT count FROM DailyIngest WHERE project_id = ? AND day_utc = ?'
-    ).get(projectId, day);
+      'SELECT count FROM DailyIngest WHERE app_id = ? AND day_utc = ?'
+    ).get(appId, day);
     return numberColumn(r, 'count', 1);
   }
 }
 
 /**
- * Returns a 429 Response if the project is over its daily budget; otherwise
+ * Returns a 429 Response if the app is over its daily budget; otherwise
  * increments and returns null (request allowed).
  *
  * @returns 429 response if over budget, else null
  */
-export function enforceProjectBudget(
+export function enforceAppBudget(
   db: DatabaseSync,
-  projectId: string,
+  appId: string,
   dailyBudget: number,
   c: Context
 ): Response | null {
-  const newCount = bumpDailyIngest(db, projectId);
+  const newCount = bumpDailyIngest(db, appId);
   if (newCount > dailyBudget) {
     // Compute seconds until next UTC midnight for Retry-After.
     const now = new Date();

@@ -2,8 +2,8 @@
 // Mounted under the existing /api/* namespace by server.ts.
 // All routes require cookie session via authMiddleware; mutations require CSRF.
 //
-// Project CRUD scoping rule: every project belongs to exactly one Org.
-// The signed-in user's org_id (from Users table) must match Projects.org_id
+// Project CRUD scoping rule: every app belongs to exactly one Org.
+// The signed-in user's org_id (from Users table) must match Apps.org_id
 // or the request returns 404 (do not leak existence cross-tenant).
 
 import { Hono } from 'hono';
@@ -105,12 +105,62 @@ function getUserOrgId(db: DatabaseSync, userID: string): string | null {
 }
 
 /**
- * Verify a project belongs to a user's org. Returns the project row or null.
+ * Verify an app belongs to a user's org. Returns the app row or null.
  */
-function getOrgProject(db: DatabaseSync, projectId: string, orgId: string): Row | null {
+function getOrgApp(db: DatabaseSync, appId: string, orgId: string): Row | null {
   return db
-    .prepare('SELECT * FROM Projects WHERE id = ? AND org_id = ?')
-    .get(projectId, orgId) ?? null;
+    .prepare('SELECT * FROM Apps WHERE id = ? AND org_id = ?')
+    .get(appId, orgId) ?? null;
+}
+
+/**
+ * Map a joined Submissions+Projects list row to the dashboard JSON shape.
+ * Expects columns from Submissions plus `app_name` from Projects.
+ */
+function mapSubmissionListRow(r: Row) {
+  return {
+    id: str(r, 'id'),
+    appId: str(r, 'app_id'),
+    appName: str(r, 'app_name'),
+    message: str(r, 'message'),
+    url: strOrNull(r, 'url'),
+    endUserName: strOrNull(r, 'end_user_name'),
+    endUserEmail: strOrNull(r, 'end_user_email'),
+    screenshotId: strOrNull(r, 'screenshot_id'),
+    status: str(r, 'status'),
+    createdAt: num(r, 'created_at'),
+  };
+}
+
+/**
+ * Build shared list filters (status, q, from, to) for submissions queries.
+ * Caller supplies the base WHERE clauses and params (project or org scope).
+ */
+function appendSubmissionListFilters(
+  url: URL,
+  where: string[],
+  params: Array<string | number>,
+): { limit: number; offset: number } {
+  const status = url.searchParams.get('status');
+  const q = url.searchParams.get('q');
+  const from = url.searchParams.get('from'); // ms
+  const to = url.searchParams.get('to');     // ms
+  const limit = Math.max(1, Math.min(200, parseInt(url.searchParams.get('limit') || '50', 10)));
+  const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10));
+
+  if (status && ALLOWED_STATUSES.has(status)) {
+    where.push('s.status = ?');
+    params.push(status);
+  }
+  if (q && q.trim()) {
+    where.push('(s.message LIKE ? OR s.end_user_name LIKE ? OR s.end_user_email LIKE ? OR s.url LIKE ?)');
+    const like = `%${q.trim()}%`;
+    params.push(like, like, like, like);
+  }
+  if (from && /^\d+$/.test(from)) { where.push('s.created_at >= ?'); params.push(parseInt(from, 10)); }
+  if (to && /^\d+$/.test(to))     { where.push('s.created_at <= ?'); params.push(parseInt(to, 10)); }
+
+  return { limit, offset };
 }
 
 /** Options for {@link createFeedbackDashboardApi}. */
@@ -144,22 +194,22 @@ export function createFeedbackDashboardApi({
   // --- Widget bundle SRI (public; the dashboard renders it into the embed snippet) ---
   app.get('/widget-integrity', (c) => c.json({ version: widgetVersion, integrity: widgetIntegrity }));
 
-  // --- Projects ---
+  // --- Apps ---
 
-  app.get('/projects', authMiddleware, (c) => {
+  app.get('/apps', authMiddleware, (c) => {
     const userID = c.get('userID');
     const orgId = getUserOrgId(db, userID);
-    if (!orgId) return c.json({ projects: [] });
+    if (!orgId) return c.json({ apps: [] });
 
     const rows = db
       .prepare(
         `SELECT id, name, public_key, allowed_origins, daily_budget, greeting, created_at
-         FROM Projects WHERE org_id = ? ORDER BY created_at DESC`
+         FROM Apps WHERE org_id = ? ORDER BY created_at DESC`
       )
       .all(orgId);
 
     return c.json({
-      projects: rows.map((r) => ({
+      apps: rows.map((r) => ({
         id: str(r, 'id'),
         name: str(r, 'name'),
         publicKey: maskKey(strOrNull(r, 'public_key')),
@@ -171,7 +221,7 @@ export function createFeedbackDashboardApi({
     });
   });
 
-  app.post('/projects', authMiddleware, csrfProtection, async (c) => {
+  app.post('/apps', authMiddleware, csrfProtection, async (c) => {
     const userID = c.get('userID');
     const orgId = getUserOrgId(db, userID);
     if (!orgId) return c.json({ error: 'No org for user' }, 400);
@@ -197,11 +247,11 @@ export function createFeedbackDashboardApi({
     const now = Date.now();
 
     db.prepare(
-      `INSERT INTO Projects (id, org_id, name, public_key, allowed_origins, daily_budget, greeting, created_at)
+      `INSERT INTO Apps (id, org_id, name, public_key, allowed_origins, daily_budget, greeting, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(id, orgId, name, publicKey, allowedOrigins, dailyBudget, greeting, now);
 
-    logger?.info?.('project created', { projectId: id, orgId });
+    logger?.info?.('app created', { appId: id, orgId });
 
     // Stripe-style: full key returned once on creation; subsequent reads are masked.
     return c.json({
@@ -215,13 +265,13 @@ export function createFeedbackDashboardApi({
     }, 201);
   });
 
-  app.patch('/projects/:id', authMiddleware, csrfProtection, async (c) => {
+  app.patch('/apps/:id', authMiddleware, csrfProtection, async (c) => {
     const userID = c.get('userID');
     const orgId = getUserOrgId(db, userID);
     if (!orgId) return c.json({ error: 'Not found' }, 404);
 
-    const projectId = c.req.param('id');
-    const existing = getOrgProject(db, projectId, orgId);
+    const appId = c.req.param('id');
+    const existing = getOrgApp(db, appId, orgId);
     if (!existing) return c.json({ error: 'Not found' }, 404);
 
     const body: unknown = await c.req.json().catch(() => null);
@@ -249,10 +299,10 @@ export function createFeedbackDashboardApi({
 
     if (!updates.length) return c.json({ error: 'nothing to update' }, 400);
 
-    values.push(projectId);
-    db.prepare(`UPDATE Projects SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+    values.push(appId);
+    db.prepare(`UPDATE Apps SET ${updates.join(', ')} WHERE id = ?`).run(...values);
 
-    const updated = getOrgProject(db, projectId, orgId);
+    const updated = getOrgApp(db, appId, orgId);
     if (!updated) return c.json({ error: 'Not found' }, 404);
     return c.json({
       id: str(updated, 'id'),
@@ -265,108 +315,144 @@ export function createFeedbackDashboardApi({
     });
   });
 
-  app.delete('/projects/:id', authMiddleware, csrfProtection, async (c) => {
+  app.delete('/apps/:id', authMiddleware, csrfProtection, async (c) => {
     const userID = c.get('userID');
     const orgId = getUserOrgId(db, userID);
     if (!orgId) return c.json({ error: 'Not found' }, 404);
 
-    const projectId = c.req.param('id');
-    const existing = getOrgProject(db, projectId, orgId);
+    const appId = c.req.param('id');
+    const existing = getOrgApp(db, appId, orgId);
     if (!existing) return c.json({ error: 'Not found' }, 404);
+
+    // Capture screenshot file ids before rows go away, then unlink after commit.
+    const shotRows = db.prepare(
+      'SELECT id FROM Screenshots WHERE app_id = ?',
+    ).all(appId);
+    const screenshotIds: string[] = [];
+    for (const row of shotRows) {
+      try {
+        screenshotIds.push(str(row, 'id'));
+      } catch {
+        /* skip bad row */
+      }
+    }
 
     db.exec('BEGIN');
     try {
-      // Phase 2 step 6 (uploads) will need to unlink files for screenshots
-      // tied to this project — for now, just clear DB rows. We'll wire the
-      // file cleanup when the upload module lands.
-      db.prepare('DELETE FROM Submissions WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM Screenshots WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM Changelog WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM DailyIngest WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM Projects WHERE id = ?').run(projectId);
+      db.prepare('DELETE FROM Submissions WHERE app_id = ?').run(appId);
+      db.prepare('DELETE FROM Screenshots WHERE app_id = ?').run(appId);
+      db.prepare('DELETE FROM Changelog WHERE app_id = ?').run(appId);
+      db.prepare('DELETE FROM DailyIngest WHERE app_id = ?').run(appId);
+      db.prepare('DELETE FROM Apps WHERE id = ?').run(appId);
       db.exec('COMMIT');
     } catch (e) {
       try { db.exec('ROLLBACK'); } catch { /* ignore */ }
-      logger?.error?.('project delete failed', { projectId, error: errorMessage(e) });
+      logger?.error?.('app delete failed', { appId, error: errorMessage(e) });
       return c.json({ error: 'Delete failed' }, 500);
+    }
+
+    for (const shotId of screenshotIds) {
+      await deleteScreenshotFile(shotId, logger);
     }
 
     return c.json({ ok: true });
   });
 
-  app.post('/projects/:id/rotate-key', authMiddleware, csrfProtection, (c) => {
+  app.post('/apps/:id/rotate-key', authMiddleware, csrfProtection, (c) => {
     const userID = c.get('userID');
     const orgId = getUserOrgId(db, userID);
     if (!orgId) return c.json({ error: 'Not found' }, 404);
 
-    const projectId = c.req.param('id');
-    const existing = getOrgProject(db, projectId, orgId);
+    const appId = c.req.param('id');
+    const existing = getOrgApp(db, appId, orgId);
     if (!existing) return c.json({ error: 'Not found' }, 404);
 
     const newKey = generatePublicKey();
-    db.prepare('UPDATE Projects SET public_key = ? WHERE id = ?').run(newKey, projectId);
+    db.prepare('UPDATE Apps SET public_key = ? WHERE id = ?').run(newKey, appId);
 
-    logger?.info?.('project key rotated', { projectId });
+    logger?.info?.('app key rotated', { appId });
     // Returned once, in full, just like initial creation.
-    return c.json({ id: projectId, publicKey: newKey });
+    return c.json({ id: appId, publicKey: newKey });
   });
 
   // --- Submissions ---
 
-  app.get('/projects/:id/submissions', authMiddleware, (c) => {
+  /**
+   * Org-wide inbox (all projects). Register before /submissions/:id so
+   * "submissions" is not captured as an id.
+   */
+  app.get('/submissions', authMiddleware, (c) => {
     const userID = c.get('userID');
     const orgId = getUserOrgId(db, userID);
-    if (!orgId) return c.json({ submissions: [] });
-
-    const projectId = c.req.param('id');
-    const project = getOrgProject(db, projectId, orgId);
-    if (!project) return c.json({ error: 'Not found' }, 404);
+    if (!orgId) return c.json({ submissions: [], total: 0, limit: 50, offset: 0 });
 
     const url = new URL(c.req.url);
-    const status = url.searchParams.get('status');
-    const q = url.searchParams.get('q');
-    const from = url.searchParams.get('from'); // ms
-    const to = url.searchParams.get('to');     // ms
-    const limit = Math.max(1, Math.min(200, parseInt(url.searchParams.get('limit') || '50', 10)));
-    const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10));
-
-    const where = ['project_id = ?'];
-    const params: Array<string | number> = [projectId];
-    if (status && ALLOWED_STATUSES.has(status)) {
-      where.push('status = ?'); params.push(status);
+    const where = ['p.org_id = ?'];
+    const params: Array<string | number> = [orgId];
+    const projectFilter = url.searchParams.get('appId');
+    if (projectFilter) {
+      where.push('s.app_id = ?');
+      params.push(projectFilter);
     }
-    if (q && q.trim()) {
-      where.push('(message LIKE ? OR end_user_name LIKE ? OR end_user_email LIKE ? OR url LIKE ?)');
-      const like = `%${q.trim()}%`;
-      params.push(like, like, like, like);
-    }
-    if (from && /^\d+$/.test(from)) { where.push('created_at >= ?'); params.push(parseInt(from, 10)); }
-    if (to && /^\d+$/.test(to))     { where.push('created_at <= ?'); params.push(parseInt(to, 10)); }
+    const { limit, offset } = appendSubmissionListFilters(url, where, params);
 
     const rows = db.prepare(
-      `SELECT id, message, url, end_user_name, end_user_email, screenshot_id, status, created_at
-       FROM Submissions
+      `SELECT s.id, s.app_id, p.name AS app_name, s.message, s.url,
+              s.end_user_name, s.end_user_email, s.screenshot_id, s.status, s.created_at
+       FROM Submissions s
+       JOIN Apps p ON p.id = s.app_id
        WHERE ${where.join(' AND ')}
-       ORDER BY created_at DESC
+       ORDER BY s.created_at DESC
        LIMIT ? OFFSET ?`
     ).all(...params, limit, offset);
 
     const totalRow = db.prepare(
-      `SELECT COUNT(*) AS n FROM Submissions WHERE ${where.join(' AND ')}`
+      `SELECT COUNT(*) AS n
+       FROM Submissions s
+       JOIN Apps p ON p.id = s.app_id
+       WHERE ${where.join(' AND ')}`
     ).get(...params);
     const total = totalRow ? num(totalRow, 'n') : 0;
 
     return c.json({
-      submissions: rows.map((r) => ({
-        id: str(r, 'id'),
-        message: str(r, 'message'),
-        url: strOrNull(r, 'url'),
-        endUserName: strOrNull(r, 'end_user_name'),
-        endUserEmail: strOrNull(r, 'end_user_email'),
-        screenshotId: strOrNull(r, 'screenshot_id'),
-        status: str(r, 'status'),
-        createdAt: num(r, 'created_at'),
-      })),
+      submissions: rows.map(mapSubmissionListRow),
+      total,
+      limit,
+      offset,
+    });
+  });
+
+  app.get('/apps/:id/submissions', authMiddleware, (c) => {
+    const userID = c.get('userID');
+    const orgId = getUserOrgId(db, userID);
+    if (!orgId) return c.json({ submissions: [] });
+
+    const appId = c.req.param('id');
+    const project = getOrgApp(db, appId, orgId);
+    if (!project) return c.json({ error: 'Not found' }, 404);
+
+    const url = new URL(c.req.url);
+    const where = ['s.app_id = ?'];
+    const params: Array<string | number> = [appId];
+    const { limit, offset } = appendSubmissionListFilters(url, where, params);
+
+    const rows = db.prepare(
+      `SELECT s.id, s.app_id, p.name AS app_name, s.message, s.url,
+              s.end_user_name, s.end_user_email, s.screenshot_id, s.status, s.created_at
+       FROM Submissions s
+       JOIN Apps p ON p.id = s.app_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY s.created_at DESC
+       LIMIT ? OFFSET ?`
+    ).all(...params, limit, offset);
+
+    const totalRow = db.prepare(
+      `SELECT COUNT(*) AS n FROM Submissions s WHERE ${where.join(' AND ')}`
+    ).get(...params);
+    const total = totalRow ? num(totalRow, 'n') : 0;
+
+    return c.json({
+      submissions: rows.map(mapSubmissionListRow),
       total,
       limit,
       offset,
@@ -380,16 +466,17 @@ export function createFeedbackDashboardApi({
 
     const id = c.req.param('id');
     const row = db.prepare(
-      `SELECT s.*, p.org_id AS p_org_id
+      `SELECT s.*, p.org_id AS p_org_id, p.name AS app_name
        FROM Submissions s
-       JOIN Projects p ON p.id = s.project_id
+       JOIN Apps p ON p.id = s.app_id
        WHERE s.id = ? AND p.org_id = ?`
     ).get(id, orgId);
     if (!row) return c.json({ error: 'Not found' }, 404);
 
     return c.json({
       id: str(row, 'id'),
-      projectId: str(row, 'project_id'),
+      appId: str(row, 'app_id'),
+      appName: str(row, 'app_name'),
       message: str(row, 'message'),
       url: strOrNull(row, 'url'),
       userAgent: strOrNull(row, 'user_agent'),
@@ -411,7 +498,7 @@ export function createFeedbackDashboardApi({
     const id = c.req.param('id');
     const owned = db.prepare(
       `SELECT s.id FROM Submissions s
-       JOIN Projects p ON p.id = s.project_id
+       JOIN Apps p ON p.id = s.app_id
        WHERE s.id = ? AND p.org_id = ?`
     ).get(id, orgId);
     if (!owned) return c.json({ error: 'Not found' }, 404);
@@ -436,7 +523,7 @@ export function createFeedbackDashboardApi({
     const id = c.req.param('id');
     const sub = db.prepare(
       `SELECT s.id, s.screenshot_id FROM Submissions s
-       JOIN Projects p ON p.id = s.project_id
+       JOIN Apps p ON p.id = s.app_id
        WHERE s.id = ? AND p.org_id = ?`
     ).get(id, orgId);
     if (!sub) return c.json({ error: 'Not found' }, 404);
@@ -478,19 +565,19 @@ export function createFeedbackDashboardApi({
 
   // --- Changelog (admin CRUD; public read served from widget-api.ts) ---
 
-  app.get('/projects/:id/changelog', authMiddleware, (c) => {
+  app.get('/apps/:id/changelog', authMiddleware, (c) => {
     const userID = c.get('userID');
     const orgId = getUserOrgId(db, userID);
     if (!orgId) return c.json({ changelog: [] });
 
-    const projectId = c.req.param('id');
-    const project = getOrgProject(db, projectId, orgId);
+    const appId = c.req.param('id');
+    const project = getOrgApp(db, appId, orgId);
     if (!project) return c.json({ error: 'Not found' }, 404);
 
     const rows = db.prepare(
       `SELECT id, title, body_md, sort_order, published_at, created_at
-       FROM Changelog WHERE project_id = ? ORDER BY sort_order ASC`
-    ).all(projectId);
+       FROM Changelog WHERE app_id = ? ORDER BY sort_order ASC`
+    ).all(appId);
 
     return c.json({
       changelog: rows.map((r) => ({
@@ -504,13 +591,13 @@ export function createFeedbackDashboardApi({
     });
   });
 
-  app.post('/projects/:id/changelog', authMiddleware, csrfProtection, async (c) => {
+  app.post('/apps/:id/changelog', authMiddleware, csrfProtection, async (c) => {
     const userID = c.get('userID');
     const orgId = getUserOrgId(db, userID);
     if (!orgId) return c.json({ error: 'Forbidden' }, 403);
 
-    const projectId = c.req.param('id');
-    const project = getOrgProject(db, projectId, orgId);
+    const appId = c.req.param('id');
+    const project = getOrgApp(db, appId, orgId);
     if (!project) return c.json({ error: 'Not found' }, 404);
 
     const body: unknown = await c.req.json().catch(() => null);
@@ -526,16 +613,16 @@ export function createFeedbackDashboardApi({
 
     // Append at the end. Caller can reorder via /reorder.
     const maxRow = db.prepare(
-      'SELECT MAX(sort_order) AS m FROM Changelog WHERE project_id = ?'
-    ).get(projectId);
+      'SELECT MAX(sort_order) AS m FROM Changelog WHERE app_id = ?'
+    ).get(appId);
     const sortOrder = (maxRow ? numOrNull(maxRow, 'm') ?? 0 : 0) + 1;
     const id = randomUUID();
     const now = Date.now();
 
     db.prepare(
-      `INSERT INTO Changelog (id, project_id, title, body_md, sort_order, published_at, created_at)
+      `INSERT INTO Changelog (id, app_id, title, body_md, sort_order, published_at, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, projectId, title, bodyMd, sortOrder, publish ? now : null, now);
+    ).run(id, appId, title, bodyMd, sortOrder, publish ? now : null, now);
 
     return c.json({
       id, title, body: bodyMd, sortOrder,
@@ -551,8 +638,8 @@ export function createFeedbackDashboardApi({
 
     const id = c.req.param('id');
     const owned = db.prepare(
-      `SELECT cl.id, cl.project_id, cl.published_at FROM Changelog cl
-       JOIN Projects p ON p.id = cl.project_id
+      `SELECT cl.id, cl.app_id, cl.published_at FROM Changelog cl
+       JOIN Apps p ON p.id = cl.app_id
        WHERE cl.id = ? AND p.org_id = ?`
     ).get(id, orgId);
     if (!owned) return c.json({ error: 'Not found' }, 404);
@@ -605,7 +692,7 @@ export function createFeedbackDashboardApi({
     const id = c.req.param('id');
     const owned = db.prepare(
       `SELECT cl.id FROM Changelog cl
-       JOIN Projects p ON p.id = cl.project_id
+       JOIN Apps p ON p.id = cl.app_id
        WHERE cl.id = ? AND p.org_id = ?`
     ).get(id, orgId);
     if (!owned) return c.json({ error: 'Not found' }, 404);
@@ -616,13 +703,13 @@ export function createFeedbackDashboardApi({
 
   // Reorder: dashboard sends [{id, sortOrder}] after a drag-drop. Updates run in
   // a single transaction. Org-scoped — silently ignores ids not owned by org.
-  app.post('/projects/:id/changelog/reorder', authMiddleware, csrfProtection, async (c) => {
+  app.post('/apps/:id/changelog/reorder', authMiddleware, csrfProtection, async (c) => {
     const userID = c.get('userID');
     const orgId = getUserOrgId(db, userID);
     if (!orgId) return c.json({ error: 'Forbidden' }, 403);
 
-    const projectId = c.req.param('id');
-    const project = getOrgProject(db, projectId, orgId);
+    const appId = c.req.param('id');
+    const project = getOrgApp(db, appId, orgId);
     if (!project) return c.json({ error: 'Not found' }, 404);
 
     const body: unknown = await c.req.json().catch(() => null);
@@ -630,7 +717,7 @@ export function createFeedbackDashboardApi({
     if (!Array.isArray(items)) return c.json({ error: 'items array required' }, 400);
 
     const upd = db.prepare(
-      'UPDATE Changelog SET sort_order = ? WHERE id = ? AND project_id = ?'
+      'UPDATE Changelog SET sort_order = ? WHERE id = ? AND app_id = ?'
     );
     db.exec('BEGIN');
     try {
@@ -639,14 +726,14 @@ export function createFeedbackDashboardApi({
           const itemId = item.id;
           const itemSort = item.sortOrder;
           if (typeof itemId === 'string' && typeof itemSort === 'number' && Number.isFinite(itemSort)) {
-            upd.run(Math.floor(itemSort), itemId, projectId);
+            upd.run(Math.floor(itemSort), itemId, appId);
           }
         }
       }
       db.exec('COMMIT');
     } catch (e) {
       try { db.exec('ROLLBACK'); } catch { /* ignore */ }
-      logger?.error?.('changelog reorder failed', { projectId, error: errorMessage(e) });
+      logger?.error?.('changelog reorder failed', { appId, error: errorMessage(e) });
       return c.json({ error: 'Reorder failed' }, 500);
     }
     return c.json({ ok: true });
@@ -664,7 +751,7 @@ export function createFeedbackDashboardApi({
     const row = db.prepare(
       `SELECT s.id, s.content_type, s.size_bytes
        FROM Screenshots s
-       JOIN Projects p ON p.id = s.project_id
+       JOIN Apps p ON p.id = s.app_id
        WHERE s.id = ? AND p.org_id = ?`
     ).get(id, orgId);
     if (!row) return c.json({ error: 'Forbidden' }, 403);

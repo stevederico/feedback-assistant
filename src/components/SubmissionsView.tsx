@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router';
-import { toast } from 'sonner';
 import { Search, Archive, Mail, MailOpen, Trash2, ExternalLink, Image as ImageIcon, Inbox } from '@stevederico/skateboard-ui/icons';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
@@ -23,7 +22,7 @@ import Header from '@stevederico/skateboard-ui/Header';
 import { faApi, screenshotUrl } from '../util/api';
 import { embedSnippet } from '../util/embed';
 import { useCurrentProject } from '../util/useCurrentProject';
-import ProjectPicker from './ProjectPicker';
+import ProjectPicker, { ALL_PROJECTS } from './ProjectPicker';
 import type { Submission, SubmissionDetail, SubmissionStatus } from '../util/types';
 
 /** Visual variant accepted by the shadcn Badge component. */
@@ -73,25 +72,44 @@ export default function SubmissionsView() {
   const navigate = useNavigate();
   const { projects, current, currentId, setCurrentId, loading } = useCurrentProject();
 
+  // Local filter so "All projects" does not pollute Changelog's shared selection.
+  const [filterId, setFilterId] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<Submission[] | null>(null);
   const [status, setStatus] = useState('all');
   const [search, setSearch] = useState('');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeDetail, setActiveDetail] = useState<SubmissionDetail | null>(null);
 
+  // Default: All projects when 2+, else the single project. Re-resolve if selection goes stale.
+  useEffect(() => {
+    if (!projects) return;
+    if (projects.length === 0) { setFilterId(null); return; }
+    const isValid = filterId === ALL_PROJECTS
+      || (filterId !== null && projects.some((p) => p.id === filterId));
+    if (isValid) return;
+    setFilterId(projects.length > 1 ? ALL_PROJECTS : (currentId || projects[0].id));
+  }, [projects, currentId, filterId]);
+
+  const isAllProjects = filterId === ALL_PROJECTS;
+  const filterProject = !isAllProjects && filterId
+    ? projects?.find((p) => p.id === filterId) || null
+    : null;
+  // Empty-state embed uses the filtered project, else the shared current project.
+  const setupProject = filterProject || current;
+
   // True when a status tab or search query is narrowing the list — used to tell
   // "no results for this filter" apart from "this project has no feedback yet".
   const isFiltered = status !== 'all' || search.trim() !== '';
 
   const fetchList = useCallback(() => {
-    if (!currentId) { setSubmissions([]); return; }
+    if (!filterId) { setSubmissions([]); return; }
     const params: { limit: number; status?: string; q?: string } = { limit: 100 };
     if (status !== 'all') params.status = status;
     if (search.trim()) params.q = search.trim();
-    faApi.listSubmissions(currentId, params)
+    faApi.listSubmissions(filterId, params)
       .then((r) => setSubmissions(r.submissions || []))
       .catch(() => setSubmissions([]));
-  }, [currentId, status, search]);
+  }, [filterId, status, search]);
 
   useEffect(() => { fetchList(); }, [fetchList]);
 
@@ -111,41 +129,59 @@ export default function SubmissionsView() {
     return () => { cancelled = true; };
   }, [activeId]);
 
+  function handleProjectFilter(id: string) {
+    setFilterId(id);
+    if (id !== ALL_PROJECTS) setCurrentId(id);
+  }
+
+  const [actionError, setActionError] = useState<string | null>(null);
+
   async function updateStatus(id: string, newStatus: SubmissionStatus) {
+    setActionError(null);
     try {
       await faApi.updateSubmission(id, { status: newStatus });
-      toast.success(`Marked ${newStatus}`);
       fetchList();
       if (activeDetail && !activeDetail.error && activeDetail.id === id) {
         setActiveDetail({ ...activeDetail, status: newStatus });
       }
-    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Update failed'); }
+    } catch (e) {
+      setActionError((e instanceof Error ? e.message : String(e)) || 'Update failed');
+    }
   }
 
   async function handleDelete(id: string) {
+    setActionError(null);
     try {
       await faApi.deleteSubmission(id);
-      toast.success('Submission deleted');
       setActiveId(null);
       fetchList();
-    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Delete failed'); }
+    } catch (e) {
+      setActionError((e instanceof Error ? e.message : String(e)) || 'Delete failed');
+    }
   }
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <Header title="Submissions">
-        {projects && projects.length > 1 && (
-          <ProjectPicker projects={projects} currentId={currentId} onChange={setCurrentId} />
-        )}
+        <ProjectPicker
+          projects={projects}
+          currentId={filterId}
+          onChange={handleProjectFilter}
+          allowAll
+        />
       </Header>
+
+      {actionError && (
+        <p className="text-sm text-destructive" role="alert">{actionError}</p>
+      )}
 
       {!loading && (!projects || projects.length === 0) && (
         <Card className="p-6">
-          <div className="text-sm">Create a project first to receive submissions.</div>
+          <div className="text-sm">Create an app first to receive submissions.</div>
         </Card>
       )}
 
-      {currentId && (
+      {filterId && (
         <>
           <div className="flex flex-wrap items-center gap-2">
             <Tabs value={status} onValueChange={setStatus}>
@@ -177,25 +213,27 @@ export default function SubmissionsView() {
             </Card>
           )}
 
-          {current && submissions !== null && submissions.length === 0 && !isFiltered && (
+          {setupProject && submissions !== null && submissions.length === 0 && !isFiltered && (
             <div className="flex items-center justify-center py-8">
               <Empty>
                 <EmptyHeader>
                   <EmptyMedia variant="icon"><Inbox size={24} /></EmptyMedia>
                   <EmptyTitle>No feedback yet</EmptyTitle>
                   <EmptyDescription>
-                    Add the widget to your site to start collecting feedback for "{current.name}".
+                    {isAllProjects
+                      ? 'Add the widget to your site to start collecting feedback.'
+                      : `Add the widget to your site to start collecting feedback for "${setupProject.name}".`}
                   </EmptyDescription>
                 </EmptyHeader>
                 <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto text-left max-w-full">
-                  <code>{embedSnippet(current.publicKey)}</code>
+                  <code>{embedSnippet(setupProject.publicKey)}</code>
                 </pre>
                 <p className="text-xs text-muted-foreground text-left">
-                  This is a preview — the key is masked. Open the project to copy your full widget key.
+                  This is a preview — the key is masked. Open the app to copy your full widget key.
                 </p>
-                <Button onClick={() => navigate('/app/projects')}>Set up widget</Button>
+                <Button onClick={() => navigate('/app/apps')}>Set up widget</Button>
                 <ol className="text-xs text-muted-foreground text-left list-decimal pl-4 flex flex-col gap-1">
-                  <li>Open the project in Projects to get the full widget key.</li>
+                  <li>Open the app in Apps to get the full widget key.</li>
                   <li>Paste the snippet before <code>&lt;/body&gt;</code> on your site.</li>
                   <li>Submit a test message — it appears here.</li>
                 </ol>
@@ -216,6 +254,9 @@ export default function SubmissionsView() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <Badge variant={STATUS_BADGE[s.status] || 'default'}>{s.status}</Badge>
+                          {s.appName && (
+                            <Badge variant="outline">{s.appName}</Badge>
+                          )}
                           {s.endUserName && (
                             <span className="text-xs text-muted-foreground truncate">
                               {s.endUserName}
@@ -252,7 +293,7 @@ export default function SubmissionsView() {
               <DialogHeader>
                 <DialogTitle>Feedback submission</DialogTitle>
                 <DialogDescription>
-                  {fmtTime(activeDetail.createdAt)}
+                  {[activeDetail.appName, fmtTime(activeDetail.createdAt)].filter(Boolean).join(' · ')}
                 </DialogDescription>
               </DialogHeader>
 
@@ -261,6 +302,9 @@ export default function SubmissionsView() {
                   <Badge variant={STATUS_BADGE[activeDetail.status] || 'default'}>
                     {activeDetail.status}
                   </Badge>
+                  {activeDetail.appName && (
+                    <Badge variant="outline">{activeDetail.appName}</Badge>
+                  )}
                   {activeDetail.appVersion && (
                     <span className="text-xs text-muted-foreground">v{activeDetail.appVersion}</span>
                   )}

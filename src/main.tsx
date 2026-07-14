@@ -21,10 +21,14 @@ import { createSkateboardApp } from '@stevederico/skateboard-ui/App';
 import type { AppRoute } from '@stevederico/skateboard-ui/App';
 import Layout from '@stevederico/skateboard-ui/Layout';
 import CommandMenu from './components/CommandMenu';
-import constants from './constants.json';
+import baseConstants from './constants.json';
+import { applyPublicConfigOverrides } from './util/publicConfig';
 import ProjectsView from './components/ProjectsView';
 import SubmissionsView from './components/SubmissionsView';
 import ChangelogView from './components/ChangelogView';
+
+/** constants.json defaults + COMPANY_* / FRONTEND_URL overrides from the build env. */
+const constants = applyPublicConfigOverrides(baseConstants);
 
 /**
  * App layout with global command menu overlay.
@@ -50,7 +54,7 @@ function AppLayout() {
  * The shell handles route registration, navigation, and layout.
  */
 const appRoutes: AppRoute[] = [
-  { path: 'projects', element: <ProjectsView /> },
+  { path: 'apps', element: <ProjectsView /> },
   { path: 'submissions', element: <SubmissionsView /> },
   { path: 'changelog', element: <ChangelogView /> }
 ];
@@ -73,6 +77,6 @@ const appRoutes: AppRoute[] = [
 createSkateboardApp({
   constants,
   appRoutes,
-  defaultRoute: 'projects',
+  defaultRoute: 'apps',
   overrides: { layout: AppLayout }
 });

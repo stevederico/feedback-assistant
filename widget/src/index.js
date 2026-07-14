@@ -80,19 +80,86 @@ function applyStyles(shadow) {
   shadow.appendChild(el('style', { text: stylesText }));
 }
 
+/** Lucide-style camera icon (16×16) for the screenshot button. */
+function iconCamera() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = (d) => {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', d);
+    return p;
+  };
+  const circle = (cx, cy, r) => {
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', cx);
+    c.setAttribute('cy', cy);
+    c.setAttribute('r', r);
+    return c;
+  };
+  // Camera body + lens
+  svg.appendChild(path('M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z'));
+  svg.appendChild(circle('12', '13', '3'));
+  return svg;
+}
+
+/** Lucide-style monitor icon (16×16) for share-screen. */
+function iconMonitor() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = (d) => {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', d);
+    return p;
+  };
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('width', '20');
+  rect.setAttribute('height', '14');
+  rect.setAttribute('x', '2');
+  rect.setAttribute('y', '3');
+  rect.setAttribute('rx', '2');
+  svg.appendChild(rect);
+  svg.appendChild(path('M8 21h8'));
+  svg.appendChild(path('M12 17v4'));
+  return svg;
+}
+
 function buildPopover() {
-  const tabs = el('div', { class: 'fa-tabs', role: 'tablist' },
-    el('button', { class: 'fa-tab', 'data-tab': 'changelog', 'data-active': 'false', role: 'tab' }, "What's New"),
-    el('button', { class: 'fa-tab', 'data-tab': 'feedback', 'data-active': 'true', role: 'tab' }, 'Send Feedback'),
+  // Picker left; capture tools upper-right (feedback tab only).
+  const tabs = el('div', { class: 'fa-tabs', role: 'tablist', 'aria-label': 'Feedback views' },
+    el('button', { class: 'fa-tab', 'data-tab': 'feedback', 'data-active': 'true', role: 'tab', 'aria-selected': 'true' }, 'Feedback'),
+    el('button', { class: 'fa-tab', 'data-tab': 'changelog', 'data-active': 'false', role: 'tab', 'aria-selected': 'false' }, "What's New"),
   );
-  const header = el('div', { class: 'fa-header' },
-    el('div', { class: 'fa-title', text: 'Feedback' }),
-    tabs,
-  );
+
+  const shotBtn = el('button', {
+    class: 'fa-btn fa-btn-icon fa-screenshot-btn', type: 'button', 'aria-label': 'Attach screenshot',
+    title: 'Screenshot',
+  }, iconCamera());
+  const shareBtn = el('button', {
+    class: 'fa-btn fa-btn-icon fa-sharescreen-btn', type: 'button', 'aria-label': 'Share screen',
+    title: 'Share screen (asks permission)',
+  }, iconMonitor());
+  const headerTools = el('div', { class: 'fa-header-tools', 'data-visible': 'true' }, shotBtn, shareBtn);
+
+  const header = el('div', { class: 'fa-header' }, tabs, headerTools);
 
   const changelogPanel = el('div', { class: 'fa-panel fa-panel-changelog', 'data-panel': 'changelog', 'data-active': 'false' },
     el('div', { class: 'fa-changelog-section' },
-      el('div', { class: 'fa-section-header', text: 'Changelog' }),
       el('div', { class: 'fa-changelog-empty', text: 'No entries yet.' }),
     ),
   );
@@ -101,13 +168,11 @@ function buildPopover() {
     class: 'fa-textarea', rows: '5',
     placeholder: "What's on your mind? Bugs, ideas, anything…",
   });
+
   const feedbackPanel = el('div', { class: 'fa-panel', 'data-panel': 'feedback', 'data-active': 'true' },
     textarea,
     el('div', { class: 'fa-screenshot-slot' }),
-    el('div', { class: 'fa-helper', text: 'We attach the URL, your name, and the app version automatically.' }),
     el('div', { class: 'fa-actions' },
-      el('button', { class: 'fa-btn fa-screenshot-btn', type: 'button' }, 'Attach screenshot'),
-      el('button', { class: 'fa-btn fa-sharescreen-btn', type: 'button', title: 'Capture the actual screen (asks permission)' }, 'Share screen'),
       el('button', { class: 'fa-btn fa-btn-primary fa-send-btn', type: 'button', disabled: true }, 'Send'),
     ),
   );
@@ -181,11 +246,17 @@ function ensureShadowRoot() {
 function renderTabs() {
   const { popover } = STATE.refs;
   popover.querySelectorAll('.fa-tab').forEach((btn) => {
-    btn.dataset.active = btn.dataset.tab === STATE.ui.activeTab ? 'true' : 'false';
+    const on = btn.dataset.tab === STATE.ui.activeTab;
+    btn.dataset.active = on ? 'true' : 'false';
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
   });
   popover.querySelectorAll('.fa-panel').forEach((panel) => {
     panel.dataset.active = panel.dataset.panel === STATE.ui.activeTab ? 'true' : 'false';
   });
+  const tools = popover.querySelector('.fa-header-tools');
+  if (tools) {
+    tools.dataset.visible = STATE.ui.activeTab === 'feedback' ? 'true' : 'false';
+  }
 }
 
 /**

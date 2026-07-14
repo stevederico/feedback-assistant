@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { toast } from 'sonner';
 import { Plus, Copy, KeyRound, Trash2 } from '@stevederico/skateboard-ui/icons';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
@@ -18,7 +17,7 @@ import { faApi } from '../util/api';
 import { embedSnippet } from '../util/embed';
 import { copyToClipboard } from '../util/clipboard';
 import ProjectDetailsDialog from './ProjectDetailsDialog';
-import type { Project, WidgetIntegrity } from '../util/types';
+import type { Project } from '../util/types';
 
 /** Key-disclosure dialog state, shown once after create or rotate. */
 interface NewKeyState {
@@ -47,44 +46,39 @@ export default function ProjectsView() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newKey, setNewKey] = useState<NewKeyState | null>(null); // returned on create/rotate
   const [detailsId, setDetailsId] = useState<string | null>(null);
-  const [integrity, setIntegrity] = useState<WidgetIntegrity | null>(null);
-
+  const [error, setError] = useState<string | null>(null);
   function load() {
     faApi.listProjects().then((r) => setProjects(r.projects || [])).catch(() => setProjects([]));
   }
   useEffect(load, []);
 
-  // Fetch the widget bundle SRI hash once so the key-disclosure snippet pins it.
-  useEffect(() => {
-    faApi.getWidgetIntegrity().then((r) => setIntegrity(r || null)).catch(() => setIntegrity(null));
-  }, []);
-
   async function handleDelete(p: Project) {
+    setError(null);
     try {
       await faApi.deleteProject(p.id);
-      toast.success(`Deleted "${p.name}"`);
       load();
     } catch (e) {
-      toast.error((e instanceof Error ? e.message : String(e)) || 'Delete failed');
+      setError((e instanceof Error ? e.message : String(e)) || 'Delete failed');
     }
   }
 
   async function handleRotate(p: Project) {
+    setError(null);
     try {
       const res = await faApi.rotateProjectKey(p.id);
       setNewKey({ id: p.id, name: p.name, publicKey: res.publicKey, rotated: true });
       load();
     } catch (e) {
-      toast.error((e instanceof Error ? e.message : String(e)) || 'Rotate failed');
+      setError((e instanceof Error ? e.message : String(e)) || 'Rotate failed');
     }
   }
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <Header title="Projects">
+      <Header title="Apps">
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger render={<Button size="sm" />}>
-            <Plus size={16} /> New project
+            <Plus size={16} /> New app
           </DialogTrigger>
           <CreateProjectDialog
             onCreated={(p) => {
@@ -96,15 +90,19 @@ export default function ProjectsView() {
         </Dialog>
       </Header>
 
+      {error && (
+        <p className="text-sm text-destructive" role="alert">{error}</p>
+      )}
+
       {projects === null && (
-        <div className="text-sm text-muted-foreground">Loading projects…</div>
+        <div className="text-sm text-muted-foreground">Loading apps…</div>
       )}
 
       {projects !== null && projects.length === 0 && (
         <Card className="p-6 flex flex-col items-start gap-3">
-          <div className="text-base font-medium">No projects yet</div>
+          <div className="text-base font-medium">No apps yet</div>
           <p className="text-sm text-muted-foreground">
-            Create a project to get a widget key.
+            Create an app to get a widget key.
           </p>
         </Card>
       )}
@@ -132,14 +130,14 @@ export default function ProjectsView() {
                   <KeyRound size={14} /> Rotate
                 </Button>
                 <AlertDialog>
-                  <AlertDialogTrigger render={<Button size="sm" variant="outline" title="Delete project" />}>
+                  <AlertDialogTrigger render={<Button size="sm" variant="outline" title="Delete app" />}>
                     <Trash2 size={14} />
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete "{p.name}"?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This permanently removes the project, its submissions, screenshots,
+                        This permanently removes the app, its submissions, screenshots,
                         and changelog entries. The widget key will stop working immediately.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -167,7 +165,7 @@ export default function ProjectsView() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {newKey?.rotated ? 'New key for ' : 'Project created — '}
+              {newKey?.rotated ? 'New key for ' : 'App created — '}
               {newKey?.name}
             </DialogTitle>
             <DialogDescription>
@@ -188,13 +186,13 @@ export default function ProjectsView() {
             {newKey?.publicKey && (
               <>
                 <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto">
-                  <code>{embedSnippet(newKey.publicKey, integrity)}</code>
+                  <code>{embedSnippet(newKey.publicKey)}</code>
                 </pre>
                 <div>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => copyToClipboard(embedSnippet(newKey.publicKey, integrity))}
+                    onClick={() => copyToClipboard(embedSnippet(newKey.publicKey))}
                   >
                     <Copy size={14} /> Copy snippet
                   </Button>
@@ -222,13 +220,15 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
   const [origins, setOrigins] = useState('');
   const [greeting, setGreeting] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!name.trim()) {
-      toast.error('Name is required');
+      setFormError('Name is required');
       return;
     }
+    setFormError(null);
     setSubmitting(true);
     try {
       const p = await faApi.createProject({
@@ -239,7 +239,7 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
       onCreated(p);
       setName(''); setOrigins(''); setGreeting('');
     } catch (err) {
-      toast.error((err instanceof Error ? err.message : String(err)) || 'Create failed');
+      setFormError((err instanceof Error ? err.message : String(err)) || 'Create failed');
     } finally {
       setSubmitting(false);
     }
@@ -249,11 +249,14 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
     <DialogContent>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <DialogHeader>
-          <DialogTitle>New project</DialogTitle>
+          <DialogTitle>New app</DialogTitle>
           <DialogDescription>
-            Each project gets its own widget key, daily budget, and changelog.
+            Each app gets its own widget key, daily budget, and changelog.
           </DialogDescription>
         </DialogHeader>
+        {formError && (
+          <p className="text-sm text-destructive" role="alert">{formError}</p>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="proj-name">Name</Label>
@@ -276,8 +279,9 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
             onChange={(e) => setOrigins(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            Logged for hygiene; not enforced for security. Per-IP rate limit and
-            daily budget are the real guardrails.
+            Empty = any site. Non-empty = enforced on the widget API. Supports
+            exact origins and <code>*.example.com</code>. Per-IP rate limit and
+            daily budget still apply.
           </p>
         </div>
 
@@ -295,7 +299,7 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
 
         <DialogFooter>
           <Button type="submit" disabled={submitting}>
-            {submitting ? 'Creating…' : 'Create project'}
+            {submitting ? 'Creating…' : 'Create app'}
           </Button>
         </DialogFooter>
       </form>

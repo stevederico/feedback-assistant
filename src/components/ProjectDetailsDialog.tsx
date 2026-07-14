@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { Copy, KeyRound, Save } from '@stevederico/skateboard-ui/icons';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
@@ -11,7 +10,7 @@ import {
 import { faApi } from '../util/api';
 import { embedSnippet } from '../util/embed';
 import { copyToClipboard } from '../util/clipboard';
-import type { Project, WidgetIntegrity } from '../util/types';
+import type { Project } from '../util/types';
 
 /** Props for {@link ProjectDetailsDialog}. */
 interface ProjectDetailsDialogProps {
@@ -33,7 +32,7 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
   const [greeting, setGreeting] = useState('');
   const [saving, setSaving] = useState(false);
   const [rotatedKey, setRotatedKey] = useState<string | null>(null);
-  const [integrity, setIntegrity] = useState<WidgetIntegrity | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!project) return;
@@ -42,16 +41,13 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
     setBudget(project.dailyBudget ?? 1000);
     setGreeting(project.greeting || '');
     setRotatedKey(null);
+    setError(null);
   }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Fetch the widget bundle SRI hash once so the embed snippet can pin it.
-  useEffect(() => {
-    faApi.getWidgetIntegrity().then((r) => setIntegrity(r || null)).catch(() => setIntegrity(null));
-  }, []);
 
   async function handleSave() {
     if (!project) return;
     setSaving(true);
+    setError(null);
     try {
       await faApi.updateProject(project.id, {
         name: name.trim(),
@@ -59,10 +55,9 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
         dailyBudget: Number(budget) || 1000,
         greeting: greeting.trim() || null,
       });
-      toast.success('Settings saved');
       onChanged?.();
     } catch (e) {
-      toast.error((e instanceof Error ? e.message : String(e)) || 'Save failed');
+      setError((e instanceof Error ? e.message : String(e)) || 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -70,13 +65,13 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
 
   async function handleRotate() {
     if (!project) return;
+    setError(null);
     try {
       const res = await faApi.rotateProjectKey(project.id);
       setRotatedKey(res.publicKey);
       onChanged?.();
-      toast.success('Key rotated — old key is now invalid');
     } catch (e) {
-      toast.error((e instanceof Error ? e.message : String(e)) || 'Rotate failed');
+      setError((e instanceof Error ? e.message : String(e)) || 'Rotate failed');
     }
   }
 
@@ -87,12 +82,15 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{project.name}</DialogTitle>
-          <DialogDescription>Project details, widget key, and embed snippet.</DialogDescription>
+          <DialogDescription>App details, widget key, and embed snippet.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-5">
+          {error && (
+            <p className="text-sm text-destructive" role="alert">{error}</p>
+          )}
           <div className="flex flex-col gap-3">
-            <div className="text-sm font-medium">Project</div>
+            <div className="text-sm font-medium">App</div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="proj-name">Name</Label>
               <Input id="proj-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
@@ -106,7 +104,8 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
                 placeholder="https://app.example.com, https://staging.example.com"
               />
               <p className="text-xs text-muted-foreground">
-                Comma-separated. Logged for hygiene; not enforced for security.
+                Comma-separated. Empty = any site. Non-empty = enforced on the
+                widget API. Supports <code>*.example.com</code>.
               </p>
             </div>
             <div className="flex flex-col gap-1.5 max-w-xs">
@@ -158,13 +157,13 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
           <div className="flex flex-col gap-2">
             <div className="text-sm font-medium">Embed snippet</div>
             <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto">
-              <code>{embedSnippet(project.publicKey, integrity)}</code>
+              <code>{embedSnippet(project.publicKey)}</code>
             </pre>
             <div>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => copyToClipboard(embedSnippet(project.publicKey, integrity))}
+                onClick={() => copyToClipboard(embedSnippet(project.publicKey))}
               >
                 <Copy size={14} /> Copy snippet
               </Button>
@@ -189,13 +188,13 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
                   </Button>
                 </div>
                 <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto">
-                  <code>{embedSnippet(rotatedKey, integrity)}</code>
+                  <code>{embedSnippet(rotatedKey)}</code>
                 </pre>
                 <div>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => copyToClipboard(embedSnippet(rotatedKey, integrity))}
+                    onClick={() => copyToClipboard(embedSnippet(rotatedKey))}
                   >
                     <Copy size={14} /> Copy snippet
                   </Button>

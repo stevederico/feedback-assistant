@@ -14,6 +14,21 @@ RUN npm install && cd backend && npm install
 
 COPY . .
 
+# Public site identity (optional). Railway injects service variables into the
+# build environment; defaults stay in src/constants.json for OSS clones.
+#   COMPANY_WEBSITE=your.domain.com
+#   COMPANY_EMAIL=support@your.domain.com
+ARG COMPANY_WEBSITE
+ARG COMPANY_EMAIL
+ARG VITE_COMPANY_WEBSITE
+ARG VITE_COMPANY_EMAIL
+ARG FRONTEND_URL
+ENV COMPANY_WEBSITE=$COMPANY_WEBSITE \
+    COMPANY_EMAIL=$COMPANY_EMAIL \
+    VITE_COMPANY_WEBSITE=$VITE_COMPANY_WEBSITE \
+    VITE_COMPANY_EMAIL=$VITE_COMPANY_EMAIL \
+    FRONTEND_URL=$FRONTEND_URL
+
 RUN npm run build
 
 FROM node:24-alpine

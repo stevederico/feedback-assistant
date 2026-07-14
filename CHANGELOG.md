@@ -1,3 +1,73 @@
+3.20.0
+
+  Env override for public site identity
+
+3.19.0
+
+  Remove hardcoded deploy domain
+
+3.18.0
+
+  Domain  updated
+
+3.17.0
+
+  P1 launch copy and legal draft
+
+3.16.0
+
+  Remove dead scaffold files
+
+3.15.0
+
+  Drop unused frontend test stack
+
+3.14.0
+
+  Drop dnd-kit and sonner
+
+3.13.0
+
+  Consolidate docs to GUIDE
+
+3.12.0
+
+  Refresh product docs
+
+3.12.0
+
+  Rename Projects table to Apps
+
+3.11.0
+
+  Capture tools in header
+
+3.10.0
+
+  Rename projects to apps
+
+3.9.0
+
+  Widget picker as title
+  Screenshot button icons
+
+3.8.0
+
+  Auto-update widget embed
+
+3.7.0
+
+  Enforce origin allowlist
+  Cleanup screenshots on delete
+  CSP load-test fixture
+  Live auth runbook
+
+3.6.0
+
+  Show project on submissions
+  All-projects inbox filter
+  Changelog always project-scoped
+
 3.5.0
 
   Ignore runtime databases dir

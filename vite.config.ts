@@ -1,4 +1,3 @@
-/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import type { ESBuildOptions } from 'vite';
 import react from '@vitejs/plugin-react-swc';
@@ -15,6 +14,8 @@ import {
 // ===== VITE CONFIGURATION =====
 
 export default defineConfig({
+  // Expose COMPANY_WEBSITE / COMPANY_EMAIL (and VITE_*) to the client bundle.
+  envPrefix: ['VITE_', 'COMPANY_'],
   plugins: [
     react(),
     tailwindcss(),
@@ -100,22 +101,5 @@ export default defineConfig({
       ignored: ['**/node_modules/**', '**/.git/**']
     }
   },
-  logLevel: 'error',
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.{js,jsx}'],
-    coverage: {
-      provider: 'v8',
-      include: ['src/**/*.{js,jsx}'],
-      exclude: ['src/**/*.test.{js,jsx}', 'src/test/**'],
-      thresholds: {
-        lines: 100,
-        functions: 100,
-        branches: 100,
-        statements: 100
-      }
-    }
-  }
+  logLevel: 'error'
 });

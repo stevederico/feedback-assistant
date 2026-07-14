@@ -33,7 +33,7 @@ Create `backend/.env` with at least a signing secret before signing in:
 JWT_SECRET=replace-with-a-long-random-string
 ```
 
-Sign up in the dashboard, create a project, and copy the generated embed snippet into any site.
+Sign up in the dashboard, create an app, and copy the generated embed snippet into any site.
 
 <br />
 
@@ -43,7 +43,7 @@ Sign up in the dashboard, create a project, and copy the generated embed snippet
 - **One script tag** — no SDK or build step; paste the snippet and it renders itself
 - **Optional screenshots** via lazily-loaded `html2canvas` (no permission prompt)
 - **CSP-safe by construction** — builds DOM nodes (no `innerHTML`) and a Constructable Stylesheet (no inline `<style>`), so it works under strict `Content-Security-Policy` and Trusted Types
-- **SRI-pinned** — served from a versioned, immutable URL with an `integrity` hash
+- **Auto-updating embed** — default `/widget.js` always serves the latest deploy (optional pin: `/widget/vX.Y.Z.js` + SRI)
 - **Cross-origin aware** — defaults its API base from the script origin and posts feedback with an `X-Project-Key`
 
 ### 📥 **Submissions Inbox**
@@ -53,15 +53,14 @@ Sign up in the dashboard, create a project, and copy the generated embed snippet
 - **Screenshot viewer** streamed behind auth
 - **Empty states** for both "no feedback yet" (with setup instructions) and "no results"
 
-### 🗂️ **Projects & Multi-Tenancy**
-- **Org-scoped projects** — every project belongs to one workspace; cross-tenant reads return 404
+### 🗂️ **Apps & Multi-Tenancy**
+- **Org-scoped apps** — every app belongs to one workspace; cross-tenant reads return 404
 - **Public keys** (`pk_*`) shown in full once, masked thereafter, with one-click rotation
-- **Per-project daily budget** and allowed-origins hygiene
+- **Per-app daily budget** and allowed-origins hygiene
 - **Configurable greeting** rendered in the widget bubble
 
 ### 📣 **Built-in Changelog**
 - **Publish a What's New feed** with Markdown bodies
-- **Drag-to-reorder** entries (dnd-kit)
 - **Draft vs. published** — only published entries reach the widget
 
 ### 🔐 **Auth & Security**
@@ -77,6 +76,24 @@ Sign up in the dashboard, create a project, and copy the generated embed snippet
 ### Frontend
 
 Customize the app — name, tagline, landing/legal copy, sidebar pages — in `src/constants.json`.
+
+Identity defaults in `constants.json` are generic (`example.com`). **Override at build time** with env vars (Railway service variables are available during `railway up` / Docker build):
+
+| Env | Purpose |
+|-----|---------|
+| `COMPANY_WEBSITE` | Public host (or URL); SEO, sitemap, legal `_WEBSITE_` |
+| `COMPANY_EMAIL` | Support address; legal `_EMAIL_` |
+| `FRONTEND_URL` | Backend redirects; also used as website fallback if `COMPANY_WEBSITE` is unset |
+| `CORS_ORIGINS` | Backend browser origin allowlist (runtime) |
+
+Example production values:
+
+```bash
+COMPANY_WEBSITE=your.domain.com
+COMPANY_EMAIL=support@your.domain.com
+FRONTEND_URL=https://your.domain.com
+CORS_ORIGINS=https://your.domain.com
+```
 
 ### Backend
 
@@ -133,7 +150,7 @@ STRIPE_ENDPOINT_SECRET=whsec_...
 
 A **monorepo** with three parts:
 
-1. **Dashboard** (`src/`) — a React SPA built on Skateboard's application-shell pattern; the shell handles routing, auth, and layout, and `src/main.tsx` just registers the Projects, Submissions, and Changelog views.
+1. **Dashboard** (`src/`) — a React SPA built on Skateboard's application-shell pattern; the shell handles routing, auth, and layout, and `src/main.tsx` just registers the Apps, Submissions, and Changelog views.
 2. **Backend** (`backend/`) — a Hono server that bootstraps its own SQLite schema (`Orgs`, `Projects`, `Submissions`, `Screenshots`, `Changelog`, `DailyIngest`) on top of Skateboard's auth tables. It exposes two API surfaces:
    - **Dashboard API** under `/api/*` — cookie session + CSRF, org-scoped CRUD.
    - **Widget ingest** under `/v1/*` — public, keyed by `X-Project-Key`, wide-open CORS, per-IP rate limit and per-project daily budget.
@@ -143,20 +160,20 @@ The embed snippet the dashboard generates looks like this:
 
 ```html
 <script
-  src="https://your-host/widget/v3.5.0.js"
+  src="https://your-host/widget.js"
   data-project="pk_..."
   data-api="https://your-host/v1"
   defer
 ></script>
 ```
 
-See [`docs/`](docs/) for the full [Architecture](docs/ARCHITECTURE.md), [API](docs/API.md), and [Schema](docs/SCHEMA.md) references.
+See [`docs/GUIDE.md`](docs/GUIDE.md) for architecture, API, schema, deployment, and migration.
 
 <br />
 
 ## 🚀 Deployment
 
-See the [Deployment Guide](docs/DEPLOY.md) for step-by-step instructions. In short: build with `npm run prod` (bundles the dashboard and the versioned widget), then serve the backend with a persistent volume for `backend/databases`.
+See [Deployment](docs/GUIDE.md#deployment) for step-by-step instructions. In short: build with `npm run prod` (bundles the dashboard and the versioned widget), then serve the backend with a persistent volume for `backend/databases`.
 
 <br />
 

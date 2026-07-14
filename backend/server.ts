@@ -1517,18 +1517,14 @@ try {
 }
 
 // ==== WIDGET BUNDLE PATHS + SRI ====
-// Customers embed via <script src="https://<host>/widget/v<version>.js">. Each
-// version URL is immutable: the file lives at widget/dist/feedback-assistant.js
-// inside the container, but the public URL is pinned to a semver in package.json
-// so a customer pinning a version keeps getting the same bytes forever.
+// Default embed uses /widget.js (auto-update: short cache, always current build).
+// Optional pin: /widget/v<version>.js is immutable forever for the same bytes.
 const widgetVersion = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8')).version;
 const widgetDistDir = resolve(__dirname, '..', 'widget', 'dist');
 const widgetBundlePath = resolve(widgetDistDir, 'feedback-assistant.js');
 const html2canvasPath = resolve(widgetDistDir, 'html2canvas-v1.js');
 
-// SHA-384 of the bundle, computed once at boot from the exact bytes we serve.
-// Powers the SRI integrity attribute in the dashboard embed snippet — the same
-// process reads the same file it serves, so hash and bytes cannot diverge.
+// SHA-384 of the current bundle (for optional version-pin + SRI embeds).
 let widgetIntegrity = null;
 try {
   widgetIntegrity = 'sha384-' + crypto.createHash('sha384').update(readFileSync(widgetBundlePath)).digest('base64');
@@ -1549,24 +1545,33 @@ app.route('/api', createFeedbackDashboardApi({
   widgetIntegrity,
 }));
 
-// ==== WIDGET ASSETS (served versioned, immutably cached) ====
+// ==== WIDGET ASSETS ====
+/** Default Cache-Control for auto-updating `/widget.js` (redeploys within ~5 min). */
+const WIDGET_CACHE_AUTO = 'public, max-age=300, must-revalidate';
+/** Cache-Control for version-pinned URLs (never change under that path). */
+const WIDGET_CACHE_PINNED = 'public, max-age=31536000, immutable';
+
 /**
- * Serve a widget asset with immutable cache + cross-origin headers so it can be
- * embedded as a <script> on any customer origin. The default secureHeaders
- * middleware (skipped for /widget/*) sets CORP=same-origin which would block
- * cross-origin <script> loading, so the headers are set explicitly here.
+ * Serve a widget asset with cross-origin headers so it can be embedded as a
+ * `<script>` on any customer origin. CORP is set explicitly because the default
+ * secureHeaders middleware (skipped for /widget/*) would use same-origin.
  *
  * @param c - Hono context
  * @param filePath - Absolute path to the asset on disk
+ * @param cacheControl - Cache-Control header value
  * @returns JS response, or 404 if the file is missing
  */
-async function serveWidgetAsset(c: Context, filePath: string): Promise<Response> {
+async function serveWidgetAsset(
+  c: Context,
+  filePath: string,
+  cacheControl: string = WIDGET_CACHE_PINNED,
+): Promise<Response> {
   try {
     const buf = await promisify(readFile)(filePath);
     return new Response(buf, {
       headers: {
         'Content-Type': 'application/javascript; charset=utf-8',
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Cache-Control': cacheControl,
         'X-Content-Type-Options': 'nosniff',
         'Access-Control-Allow-Origin': '*',
         'Cross-Origin-Resource-Policy': 'cross-origin',
@@ -1577,10 +1582,13 @@ async function serveWidgetAsset(c: Context, filePath: string): Promise<Response>
   }
 }
 
-app.get(`/widget/v${widgetVersion}.js`, (c) => serveWidgetAsset(c, widgetBundlePath));
+// Auto-update: always the current build. Dashboard embed uses this by default.
+app.get('/widget.js', (c) => serveWidgetAsset(c, widgetBundlePath, WIDGET_CACHE_AUTO));
+// Optional pin: same bytes under a semver path for freeze-forever embeds.
+app.get(`/widget/v${widgetVersion}.js`, (c) => serveWidgetAsset(c, widgetBundlePath, WIDGET_CACHE_PINNED));
 // html2canvas is lazy-loaded by the widget for DOM screenshots (no permission
-// prompt). Pinned filename, immutable — bump the suffix only on library upgrades.
-app.get('/widget/html2canvas-v1.js', (c) => serveWidgetAsset(c, html2canvasPath));
+// prompt). Pinned filename — bump the suffix only on library upgrades.
+app.get('/widget/html2canvas-v1.js', (c) => serveWidgetAsset(c, html2canvasPath, WIDGET_CACHE_PINNED));
 
 // ==== STATIC FILE SERVING (Production) ====
 const staticDir = resolve(__dirname, config.staticDir);
