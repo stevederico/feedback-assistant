@@ -1,3 +1,7 @@
+3.8.0
+
+  Auto-update widget embed
+
 3.7.0
 
   Enforce origin allowlist

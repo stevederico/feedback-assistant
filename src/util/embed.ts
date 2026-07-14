@@ -1,24 +1,31 @@
 import packageJson from '../../package.json';
 
-/** Options for {@link embedSnippet}. Matches the {@link WidgetIntegrity} shape. */
+/** Options for {@link embedSnippet}. */
 export interface EmbedSnippetOptions {
-  /** Widget version to pin (defaults to app version). */
+  /**
+   * When true (or when `version` is set), emit a version-pinned immutable URL
+   * instead of auto-updating `/widget.js`. Optional SRI via `integrity`.
+   */
+  pin?: boolean;
+  /** Widget version to pin (defaults to app version). Implies pin. */
   version?: string;
-  /** SRI hash, e.g. "sha384-..." (omitted when falsy). */
+  /** SRI hash for pinned embeds only, e.g. "sha384-..." (omitted when falsy). */
   integrity?: string | null;
 }
 
 /**
  * Build the `<script>` embed snippet a customer pastes into their site.
  *
- * The widget is served from this dashboard's own origin at a versioned,
- * immutable URL. `data-api` is set explicitly so the widget posts to this
- * host's `/v1` API regardless of which origin the customer embeds it on.
- * When an SRI `integrity` hash is supplied, it is emitted alongside
- * `crossorigin="anonymous"` so browsers verify the bytes before executing.
+ * **Default (auto-update):** `src` is `/widget.js` — always the latest deploy
+ * (short cache). No SRI, because the bytes change over time.
+ *
+ * **Pinned:** pass `{ pin: true }` or `{ version, integrity }` for an immutable
+ * `/widget/vX.Y.Z.js` URL (optional integrity + crossorigin).
+ *
+ * `data-api` always points at this host's `/v1`.
  *
  * @param publicKey - Project public key (pk_*)
- * @param opts - Optional version/integrity overrides
+ * @param opts - Optional pin / version / integrity overrides
  * @returns The embed snippet HTML
  */
 export function embedSnippet(
@@ -26,14 +33,23 @@ export function embedSnippet(
   opts: EmbedSnippetOptions | null = {},
 ): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const version = opts?.version || packageJson.version;
-  const integrityAttr = opts?.integrity
-    ? `\n  integrity="${opts.integrity}"\n  crossorigin="anonymous"`
-    : '';
-  return `<script
+  const pin = opts?.pin === true || Boolean(opts?.version);
+  if (pin) {
+    const version = opts?.version || packageJson.version;
+    const integrityAttr = opts?.integrity
+      ? `\n  integrity="${opts.integrity}"\n  crossorigin="anonymous"`
+      : '';
+    return `<script
   src="${origin}/widget/v${version}.js"
   data-project="${publicKey}"
   data-api="${origin}/v1"${integrityAttr}
+  defer
+></script>`;
+  }
+  return `<script
+  src="${origin}/widget.js"
+  data-project="${publicKey}"
+  data-api="${origin}/v1"
   defer
 ></script>`;
 }

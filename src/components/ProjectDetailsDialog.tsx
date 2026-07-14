@@ -11,7 +11,7 @@ import {
 import { faApi } from '../util/api';
 import { embedSnippet } from '../util/embed';
 import { copyToClipboard } from '../util/clipboard';
-import type { Project, WidgetIntegrity } from '../util/types';
+import type { Project } from '../util/types';
 
 /** Props for {@link ProjectDetailsDialog}. */
 interface ProjectDetailsDialogProps {
@@ -33,7 +33,6 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
   const [greeting, setGreeting] = useState('');
   const [saving, setSaving] = useState(false);
   const [rotatedKey, setRotatedKey] = useState<string | null>(null);
-  const [integrity, setIntegrity] = useState<WidgetIntegrity | null>(null);
 
   useEffect(() => {
     if (!project) return;
@@ -43,11 +42,6 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
     setGreeting(project.greeting || '');
     setRotatedKey(null);
   }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Fetch the widget bundle SRI hash once so the embed snippet can pin it.
-  useEffect(() => {
-    faApi.getWidgetIntegrity().then((r) => setIntegrity(r || null)).catch(() => setIntegrity(null));
-  }, []);
 
   async function handleSave() {
     if (!project) return;
@@ -159,13 +153,13 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
           <div className="flex flex-col gap-2">
             <div className="text-sm font-medium">Embed snippet</div>
             <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto">
-              <code>{embedSnippet(project.publicKey, integrity)}</code>
+              <code>{embedSnippet(project.publicKey)}</code>
             </pre>
             <div>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => copyToClipboard(embedSnippet(project.publicKey, integrity))}
+                onClick={() => copyToClipboard(embedSnippet(project.publicKey))}
               >
                 <Copy size={14} /> Copy snippet
               </Button>
@@ -190,13 +184,13 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
                   </Button>
                 </div>
                 <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto">
-                  <code>{embedSnippet(rotatedKey, integrity)}</code>
+                  <code>{embedSnippet(rotatedKey)}</code>
                 </pre>
                 <div>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => copyToClipboard(embedSnippet(rotatedKey, integrity))}
+                    onClick={() => copyToClipboard(embedSnippet(rotatedKey))}
                   >
                     <Copy size={14} /> Copy snippet
                   </Button>

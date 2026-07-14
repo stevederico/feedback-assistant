@@ -43,7 +43,7 @@ Sign up in the dashboard, create a project, and copy the generated embed snippet
 - **One script tag** — no SDK or build step; paste the snippet and it renders itself
 - **Optional screenshots** via lazily-loaded `html2canvas` (no permission prompt)
 - **CSP-safe by construction** — builds DOM nodes (no `innerHTML`) and a Constructable Stylesheet (no inline `<style>`), so it works under strict `Content-Security-Policy` and Trusted Types
-- **SRI-pinned** — served from a versioned, immutable URL with an `integrity` hash
+- **Auto-updating embed** — default `/widget.js` always serves the latest deploy (optional pin: `/widget/vX.Y.Z.js` + SRI)
 - **Cross-origin aware** — defaults its API base from the script origin and posts feedback with an `X-Project-Key`
 
 ### 📥 **Submissions Inbox**
@@ -143,7 +143,7 @@ The embed snippet the dashboard generates looks like this:
 
 ```html
 <script
-  src="https://your-host/widget/v3.5.0.js"
+  src="https://your-host/widget.js"
   data-project="pk_..."
   data-api="https://your-host/v1"
   defer

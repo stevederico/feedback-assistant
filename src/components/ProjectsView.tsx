@@ -18,7 +18,7 @@ import { faApi } from '../util/api';
 import { embedSnippet } from '../util/embed';
 import { copyToClipboard } from '../util/clipboard';
 import ProjectDetailsDialog from './ProjectDetailsDialog';
-import type { Project, WidgetIntegrity } from '../util/types';
+import type { Project } from '../util/types';
 
 /** Key-disclosure dialog state, shown once after create or rotate. */
 interface NewKeyState {
@@ -47,17 +47,10 @@ export default function ProjectsView() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newKey, setNewKey] = useState<NewKeyState | null>(null); // returned on create/rotate
   const [detailsId, setDetailsId] = useState<string | null>(null);
-  const [integrity, setIntegrity] = useState<WidgetIntegrity | null>(null);
-
   function load() {
     faApi.listProjects().then((r) => setProjects(r.projects || [])).catch(() => setProjects([]));
   }
   useEffect(load, []);
-
-  // Fetch the widget bundle SRI hash once so the key-disclosure snippet pins it.
-  useEffect(() => {
-    faApi.getWidgetIntegrity().then((r) => setIntegrity(r || null)).catch(() => setIntegrity(null));
-  }, []);
 
   async function handleDelete(p: Project) {
     try {
@@ -188,13 +181,13 @@ export default function ProjectsView() {
             {newKey?.publicKey && (
               <>
                 <pre className="rounded-md border bg-muted/40 p-3 text-xs overflow-x-auto">
-                  <code>{embedSnippet(newKey.publicKey, integrity)}</code>
+                  <code>{embedSnippet(newKey.publicKey)}</code>
                 </pre>
                 <div>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => copyToClipboard(embedSnippet(newKey.publicKey, integrity))}
+                    onClick={() => copyToClipboard(embedSnippet(newKey.publicKey))}
                   >
                     <Copy size={14} /> Copy snippet
                   </Button>
