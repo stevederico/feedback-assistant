@@ -15,7 +15,7 @@ Order = priority (top first within each section).
 ## P1 — Pre-launch (business)
 
 - [ ] Pick the wedge (vs Userback / Marker.io / Sentry)
-- [ ] Buy a dedicated domain (currently feedback-assistant.dottie.ai)
+- [ ] Change domain to feedback.dottie.ai (from feedback-assistant.dottie.ai)
 - [ ] Stripe: real product + `lookup_key` (constants.json still has `my_lookup_key`)
 - [ ] Marketing site rewrite
 - [ ] Real legal review (terms/privacy still mobile/iTunes-flavored)
