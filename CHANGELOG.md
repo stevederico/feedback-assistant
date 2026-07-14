@@ -1,3 +1,7 @@
+3.16.0
+
+  Remove dead scaffold files
+
 3.15.0
 
   Drop unused frontend test stack
