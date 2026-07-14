@@ -77,6 +77,13 @@ Sign up in the dashboard, create an app, and copy the generated embed snippet in
 
 Customize the app — name, tagline, landing/legal copy, sidebar pages — in `src/constants.json`.
 
+For your own deploy, set at least:
+
+- `companyWebsite` — public host (no scheme), used for SEO/sitemap/legal `_WEBSITE_`
+- `companyEmail` — support contact (`_EMAIL_` in legal pages)
+
+Do **not** commit production hostnames if you want a clean fork; keep defaults generic (`example.com`) and override in your private deploy branch or CI.
+
 ### Backend
 
 Set the database in `backend/config.json` (SQLite is the default):

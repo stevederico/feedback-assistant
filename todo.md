@@ -1,6 +1,6 @@
 # Feedback Assistant — To Do
 
-Shipped through **3.18.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
+Shipped through **3.19.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
 Order = priority (top first within each section).
 
 ---
@@ -24,7 +24,7 @@ Order = priority (top first within each section).
 ## P2 — Product gap (support / reply loop)
 
 - [ ] Widget support contact: app/owner name + email from public config
-- [x] Change domain to feedback.dottie.ai (from feedback-assistant.dottie.ai) — via dottie-proxy 2.22.0
+- [x] Production domain via deploy env + `companyWebsite` (no vendor domain hardcoded in OSS tree)
 - [ ] LLM + agent reply (Grok via `XAI_API_KEY`): draft assist, human agent reply pushed to widget thread, visitor id + message history (not auto-triage vapor)
 
 ## P3 — Notify & integrate

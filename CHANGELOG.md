@@ -1,3 +1,7 @@
+3.19.0
+
+  Remove hardcoded deploy domain
+
 3.18.0
 
   Domain feedback.dottie.ai

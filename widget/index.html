@@ -35,26 +35,27 @@
 
     <h2>How this page is wired</h2>
     <pre>&lt;script
-  src="https://feedback.dottie.ai/widget/v3.3.2.js"
+  src="http://localhost:8000/widget.js"
   data-project="pk_..."
-  data-api="https://feedback.dottie.ai/v1"
+  data-api="http://localhost:8000/v1"
   defer
 &gt;&lt;/script&gt;</pre>
 
-    <p>That's the entire embed. Submissions land in the dashboard at
-      <a href="https://feedback.dottie.ai/">feedback.dottie.ai</a>.
-      Replace <code>data-project</code> with your own <code>pk_*</code> from
-      Settings.</p>
+    <p>That's the entire embed. Submissions land in the dashboard (default
+      <code>http://localhost:5173</code>). Replace <code>data-project</code>
+      with your own <code>pk_*</code> from the Apps page. For production, point
+      <code>src</code> / <code>data-api</code> at your deployed host (set
+      <code>companyWebsite</code> in <code>src/constants.json</code> and
+      <code>CORS_ORIGINS</code> / <code>FRONTEND_URL</code> in the server env).</p>
 
     <!--
-      Load the production widget bundle. This is the exact <script> tag a
-      customer pastes — auto-inits from data-project + data-api.
-      Swap data-project to your own pk_* from the dashboard Settings page.
+      Dev: API/widget served by the backend on :8000 after `npm run start`.
+      Prod: replace localhost with your public origin.
     -->
     <script
-      src="https://feedback.dottie.ai/widget/v3.3.2.js"
+      src="http://localhost:8000/widget.js"
       data-project="REPLACE_WITH_YOUR_PROJECT_KEY"
-      data-api="https://feedback.dottie.ai/v1"
+      data-api="http://localhost:8000/v1"
       defer
     ></script>
     <script>
