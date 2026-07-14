@@ -77,12 +77,23 @@ Sign up in the dashboard, create an app, and copy the generated embed snippet in
 
 Customize the app — name, tagline, landing/legal copy, sidebar pages — in `src/constants.json`.
 
-For your own deploy, set at least:
+Identity defaults in `constants.json` are generic (`example.com`). **Override at build time** with env vars (Railway service variables are available during `railway up` / Docker build):
 
-- `companyWebsite` — public host (no scheme), used for SEO/sitemap/legal `_WEBSITE_`
-- `companyEmail` — support contact (`_EMAIL_` in legal pages)
+| Env | Purpose |
+|-----|---------|
+| `COMPANY_WEBSITE` | Public host (or URL); SEO, sitemap, legal `_WEBSITE_` |
+| `COMPANY_EMAIL` | Support address; legal `_EMAIL_` |
+| `FRONTEND_URL` | Backend redirects; also used as website fallback if `COMPANY_WEBSITE` is unset |
+| `CORS_ORIGINS` | Backend browser origin allowlist (runtime) |
 
-Do **not** commit production hostnames if you want a clean fork; keep defaults generic (`example.com`) and override in your private deploy branch or CI.
+Example production values:
+
+```bash
+COMPANY_WEBSITE=your.domain.com
+COMPANY_EMAIL=support@your.domain.com
+FRONTEND_URL=https://your.domain.com
+CORS_ORIGINS=https://your.domain.com
+```
 
 ### Backend
 

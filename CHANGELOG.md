@@ -1,3 +1,7 @@
+3.20.0
+
+  Env override for public site identity
+
 3.19.0
 
   Remove hardcoded deploy domain

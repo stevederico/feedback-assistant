@@ -14,6 +14,8 @@ import {
 // ===== VITE CONFIGURATION =====
 
 export default defineConfig({
+  // Expose COMPANY_WEBSITE / COMPANY_EMAIL (and VITE_*) to the client bundle.
+  envPrefix: ['VITE_', 'COMPANY_'],
   plugins: [
     react(),
     tailwindcss(),

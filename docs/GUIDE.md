@@ -497,7 +497,9 @@ Unknown keys → `{ "changelog": [] }`.
 |----------|----------|---------|
 | `JWT_SECRET` | Yes | Session signing |
 | `CORS_ORIGINS` | Prod | Comma-separated dashboard origins |
-| `FRONTEND_URL` | Prod | Redirects |
+| `FRONTEND_URL` | Prod | Redirects; also fallback host for public site identity at build |
+| `COMPANY_WEBSITE` | Prod build | Public host baked into SPA/SEO (overrides `constants.json`) |
+| `COMPANY_EMAIL` | Prod build | Support email baked into SPA/legal |
 | `PORT` | No | Default 8000 |
 | `FREE_USAGE_LIMIT` | No | Default 20 |
 | `MAX_SCREENSHOT_BYTES` | No | Default 2 097 152 |

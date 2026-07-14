@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Plugin } from 'vite';
+import { applyPublicConfigOverrides, hostFromEnvValue } from './src/util/publicConfig.ts';
 
 /**
  * Shape of the fields read from src/constants.json by these plugins.
@@ -8,6 +9,7 @@ interface AppConstants {
   appName: string;
   tagline: string;
   companyWebsite: string;
+  companyEmail?: string;
 }
 
 /** Sources the raw constants.json text. Overridable in tests via {@link __setConstantsReaderForTests}. */
@@ -42,6 +44,10 @@ function readConstants(): AppConstants {
     throw new Error('constants.json: missing appName, tagline, or companyWebsite');
   }
   const { appName, tagline, companyWebsite } = parsed;
+  const companyEmail =
+    'companyEmail' in parsed && typeof parsed.companyEmail === 'string'
+      ? parsed.companyEmail
+      : 'support@example.com';
   if (
     typeof appName !== 'string' ||
     typeof tagline !== 'string' ||
@@ -49,7 +55,14 @@ function readConstants(): AppConstants {
   ) {
     throw new Error('constants.json: appName, tagline, and companyWebsite must be strings');
   }
-  return { appName, tagline, companyWebsite };
+  // Bake COMPANY_WEBSITE / COMPANY_EMAIL / FRONTEND_URL from the build environment
+  // (Railway vars are available during `docker build` / `npm run build`).
+  const withEnv = applyPublicConfigOverrides({ companyWebsite, companyEmail });
+  return {
+    appName,
+    tagline,
+    companyWebsite: hostFromEnvValue(withEnv.companyWebsite),
+  };
 }
 
 /**
