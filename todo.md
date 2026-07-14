@@ -1,6 +1,6 @@
 # Feedback Assistant — To Do
 
-Shipped through **3.8.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
+Shipped through **3.9.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
 Order = priority (top first within each section).
 
 ---

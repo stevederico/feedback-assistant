@@ -1,3 +1,8 @@
+3.9.0
+
+  Widget picker as title
+  Screenshot button icons
+
 3.8.0
 
   Auto-update widget embed
