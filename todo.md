@@ -1,6 +1,6 @@
 # Feedback Assistant — To Do
 
-Shipped through **3.10.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
+Shipped through **3.12.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
 Order = priority (top first within each section).
 
 ---
@@ -64,3 +64,4 @@ Order = priority (top first within each section).
 - [x] App picker; submissions app labels + All-apps inbox
 - [x] Changelog always app-scoped
 - [x] Call them apps (not projects) in the UI
+- [x] Rename DB table Projects → Apps (`app_id` FKs)

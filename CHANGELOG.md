@@ -2,6 +2,10 @@
 
   Refresh product docs
 
+3.12.0
+
+  Rename Projects table to Apps
+
 3.11.0
 
   Capture tools in header

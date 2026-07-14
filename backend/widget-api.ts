@@ -4,19 +4,19 @@
 //   POST /v1/submissions               — accepts feedback, persists row
 //   POST /v1/screenshots               — multipart upload, returns screenshotId
 //   GET  /v1/projects/:pk/changelog    — public, published-only, sort_order
-//   GET  /v1/projects/:pk/widget        — public, per-project widget config (greeting)
+//   GET  /v1/projects/:pk/widget        — public, per-app widget config (greeting)
 //
 // Auth model:
-//   - All POSTs require X-Project-Key: pk_*  (looked up against Projects table)
+//   - All POSTs require X-Project-Key: pk_*  (looked up against Apps table)
 //   - No session cookie, no CSRF — widget runs on arbitrary customer origins
 //   - Per-project allowed_origins enforced when non-empty (empty = allow all)
-//   - Rate limit + per-project daily budget
+//   - Rate limit + per-app daily budget
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import { ipRateLimit, enforceProjectBudget } from './feedback-rate-limit.ts';
+import { ipRateLimit, enforceAppBudget } from './feedback-rate-limit.ts';
 import {
   saveScreenshotFile,
   isAllowedMime,
@@ -28,7 +28,7 @@ import type { Logger } from './types.ts';
 const MAX_MESSAGE_CHARS = 5000;
 
 /** A project row resolved from its public key. */
-interface ProjectKeyRow {
+interface AppKeyRow {
   id: string;
   org_id: string;
   daily_budget: number;
@@ -71,10 +71,10 @@ function num(row: Row, column: string): number {
 /**
  * Resolve a project row by its public key, or null.
  */
-function findProjectByKey(db: DatabaseSync, publicKey: string | undefined): ProjectKeyRow | null {
+function findAppByKey(db: DatabaseSync, publicKey: string | undefined): AppKeyRow | null {
   if (!publicKey || !publicKey.startsWith('pk_')) return null;
   const row = db.prepare(
-    'SELECT id, org_id, daily_budget, greeting, allowed_origins FROM Projects WHERE public_key = ?',
+    'SELECT id, org_id, daily_budget, greeting, allowed_origins FROM Apps WHERE public_key = ?',
   ).get(publicKey);
   if (!row) return null;
   return {
@@ -94,14 +94,14 @@ function findProjectByKey(db: DatabaseSync, publicKey: string | undefined): Proj
  */
 function rejectIfOriginBlocked(
   c: { req: { header: (name: string) => string | undefined } },
-  project: ProjectKeyRow,
+  appRow: AppKeyRow,
   log: Logger,
 ): Response | null {
-  const allowed = parseAllowedOrigins(project.allowed_origins);
+  const allowed = parseAllowedOrigins(appRow.allowed_origins);
   const origin = c.req.header('Origin') ?? null;
   if (isOriginAllowed(origin, allowed)) return null;
   log.warn?.('widget origin rejected', {
-    projectId: project.id,
+    appId: appRow.id,
     origin,
   });
   return Response.json({ error: 'origin not allowed' }, { status: 403 });
@@ -131,11 +131,11 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
     error: (message, meta) => console.error(message, meta),
     debug: (message, meta) => console.debug(message, meta),
   };
-  const app = new Hono();
+  const hono = new Hono();
 
-  // CORS stays wide open (credentials: false). Per-project allowlist is
+  // CORS stays wide open (credentials: false). Per-app allowlist is
   // enforced after key lookup via rejectIfOriginBlocked (app-level 403).
-  app.use(
+  hono.use(
     '*',
     cors({
       origin: '*',
@@ -146,18 +146,18 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
   );
 
   // Per-IP token bucket applies to all ingest routes.
-  app.use('/submissions', ipRateLimit());
-  app.use('/screenshots', ipRateLimit());
+  hono.use('/submissions', ipRateLimit());
+  hono.use('/screenshots', ipRateLimit());
 
-  app.post('/submissions', async (c) => {
+  hono.post('/submissions', async (c) => {
     const publicKey = c.req.header('X-Project-Key');
-    const project = findProjectByKey(db, publicKey);
-    if (!project) return c.json({ error: 'invalid or missing X-Project-Key' }, 401);
-    const blocked = rejectIfOriginBlocked(c, project, log);
+    const appRow = findAppByKey(db, publicKey);
+    if (!appRow) return c.json({ error: 'invalid or missing X-Project-Key' }, 401);
+    const blocked = rejectIfOriginBlocked(c, appRow, log);
     if (blocked) return blocked;
 
-    // Per-project daily budget. Increments the counter; rejects if over.
-    const overBudget = enforceProjectBudget(db, project.id, project.daily_budget, c);
+    // Per-app daily budget. Increments the counter; rejects if over.
+    const overBudget = enforceAppBudget(db, appRow.id, appRow.daily_budget, c);
     if (overBudget) return overBudget;
 
     const body: unknown = await c.req.json().catch(() => null);
@@ -182,9 +182,9 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
     let screenshotId: string | null = null;
     if (typeof input.screenshotId === 'string' && input.screenshotId) {
       const s = db
-        .prepare('SELECT id FROM Screenshots WHERE id = ? AND project_id = ?')
-        .get(input.screenshotId, project.id);
-      if (!s) return c.json({ error: 'screenshotId not found for this project' }, 400);
+        .prepare('SELECT id FROM Screenshots WHERE id = ? AND app_id = ?')
+        .get(input.screenshotId, appRow.id);
+      if (!s) return c.json({ error: 'screenshotId not found for this app' }, 400);
       screenshotId = str(s, 'id');
     }
 
@@ -193,17 +193,17 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
 
     db.prepare(
       `INSERT INTO Submissions (
-        id, project_id, message, url, user_agent, app_version,
+        id, app_id, message, url, user_agent, app_version,
         end_user_id, end_user_name, end_user_email, screenshot_id, status, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`
     ).run(
-      id, project.id, message, url, userAgent, appVersion,
+      id, appRow.id, message, url, userAgent, appVersion,
       endUserId, endUserName, endUserEmail, screenshotId, now
     );
 
     log.info('submission persisted', {
       submissionId: id,
-      projectId: project.id,
+      appId: appRow.id,
       origin: c.req.header('Origin') || null,
       hasScreenshot: !!screenshotId,
       messagePreview: message.slice(0, 80),
@@ -212,11 +212,11 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
     return c.json({ ok: true, submissionId: id });
   });
 
-  app.post('/screenshots', async (c) => {
+  hono.post('/screenshots', async (c) => {
     const publicKey = c.req.header('X-Project-Key');
-    const project = findProjectByKey(db, publicKey);
-    if (!project) return c.json({ error: 'invalid or missing X-Project-Key' }, 401);
-    const blocked = rejectIfOriginBlocked(c, project, log);
+    const appRow = findAppByKey(db, publicKey);
+    if (!appRow) return c.json({ error: 'invalid or missing X-Project-Key' }, 401);
+    const blocked = rejectIfOriginBlocked(c, appRow, log);
     if (blocked) return blocked;
 
     // Parse multipart. Hono returns a File-like object.
@@ -253,13 +253,13 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
 
     const now = Date.now();
     db.prepare(
-      `INSERT INTO Screenshots (id, project_id, content_type, size_bytes, created_at)
+      `INSERT INTO Screenshots (id, app_id, content_type, size_bytes, created_at)
        VALUES (?, ?, ?, ?, ?)`
-    ).run(storedId, project.id, mime, buffer.length, now);
+    ).run(storedId, appRow.id, mime, buffer.length, now);
 
     log.info('screenshot uploaded', {
       screenshotId: storedId,
-      projectId: project.id,
+      appId: appRow.id,
       mime,
       bytes: buffer.length,
     });
@@ -267,33 +267,34 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
     return c.json({ screenshotId: storedId });
   });
 
-  app.get('/projects/:pk/widget', (c) => {
-    // Public per-project widget config (greeting). Named /widget rather than
+  // Public paths keep /projects/:pk for embed compatibility (data-project / X-Project-Key).
+  hono.get('/projects/:pk/widget', (c) => {
+    // Public per-app widget config (greeting). Named /widget rather than
     // /config because Cloudflare's WAF blocks any path containing "config".
     // Mirrors the changelog endpoint's no-leak posture: unknown keys get
     // {greeting:null} (200, not 404). Known keys still enforce origin allowlist.
-    const project = findProjectByKey(db, c.req.param('pk'));
+    const appRow = findAppByKey(db, c.req.param('pk'));
     c.header('Cache-Control', 'public, max-age=60');
-    if (!project) return c.json({ greeting: null });
-    const blocked = rejectIfOriginBlocked(c, project, log);
+    if (!appRow) return c.json({ greeting: null });
+    const blocked = rejectIfOriginBlocked(c, appRow, log);
     if (blocked) return blocked;
-    return c.json({ greeting: project.greeting ?? null });
+    return c.json({ greeting: appRow.greeting ?? null });
   });
 
-  app.get('/projects/:pk/changelog', (c) => {
-    const project = findProjectByKey(db, c.req.param('pk'));
-    if (!project) return c.json({ changelog: [] }); // don't leak existence
-    const blocked = rejectIfOriginBlocked(c, project, log);
+  hono.get('/projects/:pk/changelog', (c) => {
+    const appRow = findAppByKey(db, c.req.param('pk'));
+    if (!appRow) return c.json({ changelog: [] }); // don't leak existence
+    const blocked = rejectIfOriginBlocked(c, appRow, log);
     if (blocked) return blocked;
 
     const rows = db
       .prepare(
         `SELECT id, title, body_md, published_at, sort_order
          FROM Changelog
-         WHERE project_id = ? AND published_at IS NOT NULL
+         WHERE app_id = ? AND published_at IS NOT NULL
          ORDER BY sort_order ASC`
       )
-      .all(project.id);
+      .all(appRow.id);
 
     return c.json({
       changelog: rows.map((r) => ({
@@ -305,5 +306,5 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
     });
   });
 
-  return app;
+  return hono;
 }

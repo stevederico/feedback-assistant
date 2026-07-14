@@ -245,8 +245,8 @@ export default function SubmissionsView() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <Badge variant={STATUS_BADGE[s.status] || 'default'}>{s.status}</Badge>
-                          {s.projectName && (
-                            <Badge variant="outline">{s.projectName}</Badge>
+                          {s.appName && (
+                            <Badge variant="outline">{s.appName}</Badge>
                           )}
                           {s.endUserName && (
                             <span className="text-xs text-muted-foreground truncate">
@@ -284,7 +284,7 @@ export default function SubmissionsView() {
               <DialogHeader>
                 <DialogTitle>Feedback submission</DialogTitle>
                 <DialogDescription>
-                  {[activeDetail.projectName, fmtTime(activeDetail.createdAt)].filter(Boolean).join(' · ')}
+                  {[activeDetail.appName, fmtTime(activeDetail.createdAt)].filter(Boolean).join(' · ')}
                 </DialogDescription>
               </DialogHeader>
 
@@ -293,8 +293,8 @@ export default function SubmissionsView() {
                   <Badge variant={STATUS_BADGE[activeDetail.status] || 'default'}>
                     {activeDetail.status}
                   </Badge>
-                  {activeDetail.projectName && (
-                    <Badge variant="outline">{activeDetail.projectName}</Badge>
+                  {activeDetail.appName && (
+                    <Badge variant="outline">{activeDetail.appName}</Badge>
                   )}
                   {activeDetail.appVersion && (
                     <span className="text-xs text-muted-foreground">v{activeDetail.appVersion}</span>

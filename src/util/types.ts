@@ -1,18 +1,16 @@
 // App-owned domain types for the feedback-assistant dashboard.
 //
 // These mirror the JSON shapes returned by the backend's /api endpoints
-// (feedback-dashboard-api.js). The backend stays JavaScript, so there is no
-// shared type to import — these are the frontend's source of truth for the
-// data it renders. Fields are optional where the API omits them (e.g. masked
-// keys, nullable greetings) so views stay null-safe.
+// (feedback-dashboard-api). Fields are optional where the API omits them
+// (e.g. masked keys, nullable greetings) so views stay null-safe.
 
-/** A feedback project — owns a widget key, daily budget, and changelog. */
-export interface Project {
+/** A feedback app — owns a widget key, daily budget, and changelog. */
+export interface App {
   id: string;
   name: string;
   /** Public widget key (pk_*); masked after the one-time create/rotate reveal. */
   publicKey: string;
-  /** Comma-separated allowed origins (logged for hygiene, not enforced). */
+  /** Comma-separated allowed origins (enforced on `/v1` when non-empty). */
   allowedOrigins?: string;
   /** Hard ceiling on submissions accepted per UTC day. */
   dailyBudget?: number;
@@ -22,6 +20,9 @@ export interface Project {
   createdAt?: number;
 }
 
+/** @deprecated Prefer {@link App} — alias for gradual rename. */
+export type Project = App;
+
 /** Lifecycle status of a feedback submission. */
 export type SubmissionStatus = 'new' | 'read' | 'archived';
 
@@ -30,10 +31,10 @@ export interface Submission {
   id: string;
   message: string;
   status: SubmissionStatus;
-  /** Owning project id (always present from list/detail APIs). */
-  projectId?: string;
-  /** Owning project display name. */
-  projectName?: string;
+  /** Owning app id (always present from list/detail APIs). */
+  appId?: string;
+  /** Owning app display name. */
+  appName?: string;
   endUserName?: string | null;
   endUserEmail?: string | null;
   /** URL the widget was on when the feedback was sent. */

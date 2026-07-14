@@ -58,10 +58,10 @@ before(() => {
   db.prepare('INSERT INTO Orgs (id, name, created_at) VALUES (?, ?, ?)').run('org1', 'Org One', now);
   db.prepare('INSERT INTO Orgs (id, name, created_at) VALUES (?, ?, ?)').run('org2', 'Org Two', now);
   db.prepare(
-    'INSERT INTO Projects (id, org_id, name, public_key, daily_budget, greeting, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO Apps (id, org_id, name, public_key, daily_budget, greeting, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
   ).run('proj1', 'org1', 'Proj One', PK, 1000, 'Hey there!', now);
   db.prepare(
-    'INSERT INTO Projects (id, org_id, name, public_key, daily_budget, greeting, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO Apps (id, org_id, name, public_key, daily_budget, greeting, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
   ).run('proj2', 'org2', 'Proj Two', OTHER_PK, 1000, null, now);
 
   app = createWidgetApi({ logger: { info() {}, warn() {}, error() {}, debug() {} }, db });
@@ -175,39 +175,39 @@ function dashboardForUser(userId: string, orgId: string) {
   });
 }
 
-test('GET /projects/:id/submissions includes projectId and projectName', async () => {
+test('GET /apps/:id/submissions includes appId and appName', async () => {
   const now = Date.now();
   testDb.prepare(
-    `INSERT INTO Submissions (id, project_id, message, status, created_at)
+    `INSERT INTO Submissions (id, app_id, message, status, created_at)
      VALUES (?, ?, ?, ?, ?)`
   ).run('sub-list-1', 'proj1', 'hello from list', 'new', now);
 
   const dash = dashboardForUser('user-org1', 'org1');
-  const res = await dash.request('/projects/proj1/submissions');
+  const res = await dash.request('/apps/proj1/submissions');
   assert.equal(res.status, 200);
   const body = asBody(await res.json());
   const list = body.submissions;
   assert.ok(Array.isArray(list));
   const first = list.find((s) => isRecord(s) && s.id === 'sub-list-1');
   assert.ok(isRecord(first));
-  assert.equal(first.projectId, 'proj1');
-  assert.equal(first.projectName, 'Proj One');
+  assert.equal(first.appId, 'proj1');
+  assert.equal(first.appName, 'Proj One');
   assert.equal(first.message, 'hello from list');
 });
 
-test('GET /submissions lists org-wide and tags each row with projectName', async () => {
+test('GET /submissions lists org-wide and tags each row with appName', async () => {
   const now = Date.now();
   // Second project in the same org so org-wide has mixed sources.
   testDb.prepare(
-    `INSERT OR IGNORE INTO Projects (id, org_id, name, public_key, daily_budget, greeting, created_at)
+    `INSERT OR IGNORE INTO Apps (id, org_id, name, public_key, daily_budget, greeting, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run('proj1b', 'org1', 'Proj One B', 'pk_proj1b0000000000000000000000cc', 1000, null, now);
   testDb.prepare(
-    `INSERT INTO Submissions (id, project_id, message, status, created_at)
+    `INSERT INTO Submissions (id, app_id, message, status, created_at)
      VALUES (?, ?, ?, ?, ?)`
   ).run('sub-org-a', 'proj1', 'from A', 'new', now);
   testDb.prepare(
-    `INSERT INTO Submissions (id, project_id, message, status, created_at)
+    `INSERT INTO Submissions (id, app_id, message, status, created_at)
      VALUES (?, ?, ?, ?, ?)`
   ).run('sub-org-b', 'proj1b', 'from B', 'new', now + 1);
 
@@ -220,14 +220,14 @@ test('GET /submissions lists org-wide and tags each row with projectName', async
   const byId = new Map(
     list.filter(isRecord).map((s) => [String(s.id), s]),
   );
-  assert.equal(byId.get('sub-org-a')?.projectName, 'Proj One');
-  assert.equal(byId.get('sub-org-b')?.projectName, 'Proj One B');
+  assert.equal(byId.get('sub-org-a')?.appName, 'Proj One');
+  assert.equal(byId.get('sub-org-b')?.appName, 'Proj One B');
 });
 
-test('GET /submissions/:id includes projectName', async () => {
+test('GET /submissions/:id includes appName', async () => {
   const now = Date.now();
   testDb.prepare(
-    `INSERT INTO Submissions (id, project_id, message, status, created_at)
+    `INSERT INTO Submissions (id, app_id, message, status, created_at)
      VALUES (?, ?, ?, ?, ?)`
   ).run('sub-detail-1', 'proj1', 'detail me', 'new', now);
 
@@ -235,8 +235,8 @@ test('GET /submissions/:id includes projectName', async () => {
   const res = await dash.request('/submissions/sub-detail-1');
   assert.equal(res.status, 200);
   const body = asBody(await res.json());
-  assert.equal(body.projectId, 'proj1');
-  assert.equal(body.projectName, 'Proj One');
+  assert.equal(body.appId, 'proj1');
+  assert.equal(body.appName, 'Proj One');
   assert.equal(body.message, 'detail me');
 });
 
@@ -278,7 +278,7 @@ describe('origin allowlist on /v1', () => {
   before(() => {
     const now = Date.now();
     testDb.prepare(
-      `INSERT OR IGNORE INTO Projects
+      `INSERT OR IGNORE INTO Apps
        (id, org_id, name, public_key, allowed_origins, daily_budget, greeting, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
@@ -371,7 +371,7 @@ describe('origin allowlist on /v1', () => {
   });
 });
 
-test('DELETE /projects/:id unlinks screenshot files on disk', async () => {
+test('DELETE /apps/:id unlinks screenshot files on disk', async () => {
   const now = Date.now();
   const shotId = 'shot-cleanup-file-001';
   const projId = 'proj-cleanup-files';
@@ -384,20 +384,20 @@ test('DELETE /projects/:id unlinks screenshot files on disk', async () => {
   writeFileSync(filePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
 
   testDb.prepare(
-    `INSERT INTO Projects (id, org_id, name, public_key, daily_budget, greeting, created_at)
+    `INSERT INTO Apps (id, org_id, name, public_key, daily_budget, greeting, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(projId, 'org1', 'Cleanup', pk, 1000, null, now);
   testDb.prepare(
-    `INSERT INTO Screenshots (id, project_id, content_type, size_bytes, created_at)
+    `INSERT INTO Screenshots (id, app_id, content_type, size_bytes, created_at)
      VALUES (?, ?, ?, ?, ?)`,
   ).run(shotId, projId, 'image/png', 4, now);
 
   assert.equal(existsSync(filePath), true);
 
   const dash = dashboardForUser('user-cleanup', 'org1');
-  const res = await dash.request(`/projects/${projId}`, { method: 'DELETE' });
+  const res = await dash.request(`/apps/${projId}`, { method: 'DELETE' });
   assert.equal(res.status, 200);
   assert.equal(existsSync(filePath), false);
-  const gone = testDb.prepare('SELECT id FROM Projects WHERE id = ?').get(projId);
+  const gone = testDb.prepare('SELECT id FROM Apps WHERE id = ?').get(projId);
   assert.equal(gone, undefined);
 });
