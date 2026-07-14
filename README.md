@@ -150,13 +150,13 @@ The embed snippet the dashboard generates looks like this:
 ></script>
 ```
 
-See [`docs/`](docs/) for the full [Architecture](docs/ARCHITECTURE.md), [API](docs/API.md), and [Schema](docs/SCHEMA.md) references.
+See [`docs/GUIDE.md`](docs/GUIDE.md) for architecture, API, schema, deployment, and migration.
 
 <br />
 
 ## 🚀 Deployment
 
-See the [Deployment Guide](docs/DEPLOY.md) for step-by-step instructions. In short: build with `npm run prod` (bundles the dashboard and the versioned widget), then serve the backend with a persistent volume for `backend/databases`.
+See [Deployment](docs/GUIDE.md#deployment) for step-by-step instructions. In short: build with `npm run prod` (bundles the dashboard and the versioned widget), then serve the backend with a persistent volume for `backend/databases`.
 
 <br />
 

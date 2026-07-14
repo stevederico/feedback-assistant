@@ -1,3 +1,7 @@
+3.13.0
+
+  Consolidate docs to GUIDE
+
 3.12.0
 
   Refresh product docs
