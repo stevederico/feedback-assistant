@@ -1,3 +1,7 @@
+3.10.0
+
+  Rename projects to apps
+
 3.9.0
 
   Widget picker as title

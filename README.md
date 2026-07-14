@@ -33,7 +33,7 @@ Create `backend/.env` with at least a signing secret before signing in:
 JWT_SECRET=replace-with-a-long-random-string
 ```
 
-Sign up in the dashboard, create a project, and copy the generated embed snippet into any site.
+Sign up in the dashboard, create an app, and copy the generated embed snippet into any site.
 
 <br />
 
@@ -53,10 +53,10 @@ Sign up in the dashboard, create a project, and copy the generated embed snippet
 - **Screenshot viewer** streamed behind auth
 - **Empty states** for both "no feedback yet" (with setup instructions) and "no results"
 
-### 🗂️ **Projects & Multi-Tenancy**
-- **Org-scoped projects** — every project belongs to one workspace; cross-tenant reads return 404
+### 🗂️ **Apps & Multi-Tenancy**
+- **Org-scoped apps** — every app belongs to one workspace; cross-tenant reads return 404
 - **Public keys** (`pk_*`) shown in full once, masked thereafter, with one-click rotation
-- **Per-project daily budget** and allowed-origins hygiene
+- **Per-app daily budget** and allowed-origins hygiene
 - **Configurable greeting** rendered in the widget bubble
 
 ### 📣 **Built-in Changelog**
@@ -133,7 +133,7 @@ STRIPE_ENDPOINT_SECRET=whsec_...
 
 A **monorepo** with three parts:
 
-1. **Dashboard** (`src/`) — a React SPA built on Skateboard's application-shell pattern; the shell handles routing, auth, and layout, and `src/main.tsx` just registers the Projects, Submissions, and Changelog views.
+1. **Dashboard** (`src/`) — a React SPA built on Skateboard's application-shell pattern; the shell handles routing, auth, and layout, and `src/main.tsx` just registers the Apps, Submissions, and Changelog views.
 2. **Backend** (`backend/`) — a Hono server that bootstraps its own SQLite schema (`Orgs`, `Projects`, `Submissions`, `Screenshots`, `Changelog`, `DailyIngest`) on top of Skateboard's auth tables. It exposes two API surfaces:
    - **Dashboard API** under `/api/*` — cookie session + CSRF, org-scoped CRUD.
    - **Widget ingest** under `/v1/*` — public, keyed by `X-Project-Key`, wide-open CORS, per-IP rate limit and per-project daily budget.

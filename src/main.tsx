@@ -50,7 +50,7 @@ function AppLayout() {
  * The shell handles route registration, navigation, and layout.
  */
 const appRoutes: AppRoute[] = [
-  { path: 'projects', element: <ProjectsView /> },
+  { path: 'apps', element: <ProjectsView /> },
   { path: 'submissions', element: <SubmissionsView /> },
   { path: 'changelog', element: <ChangelogView /> }
 ];
@@ -73,6 +73,6 @@ const appRoutes: AppRoute[] = [
 createSkateboardApp({
   constants,
   appRoutes,
-  defaultRoute: 'projects',
+  defaultRoute: 'apps',
   overrides: { layout: AppLayout }
 });

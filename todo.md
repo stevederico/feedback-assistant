@@ -1,14 +1,14 @@
 # Feedback Assistant — To Do
 
-Shipped through **3.9.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
+Shipped through **3.10.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
 Order = priority (top first within each section).
 
 ---
 
 ## P0 — Correctness & security (do next)
 
-- [x] Enforce per-project origin allowlist on `/v1` (empty = any; non-empty enforces; `*.domain` supported)
-- [x] File cleanup on project delete (unlink screenshot files after DB cascade)
+- [x] Enforce per-app origin allowlist on `/v1` (empty = any; non-empty enforces; `*.domain` supported)
+- [x] File cleanup on app delete (unlink screenshot files after DB cascade)
 - [ ] Load-test widget on a real strict-CSP page — fixture: `scripts/csp-widget-fixture.html` (serve over HTTP; fill `pk_`; confirm Console clean + submit works)
 - [x] Live auth test against a real server — runbook: `scripts/live-auth-check.md` (scrypt signup + `/api/me` 200; bcrypt fixture rehashed to `scrypt$`)
 
@@ -22,7 +22,7 @@ Order = priority (top first within each section).
 
 ## P2 — Product gap (support / reply loop)
 
-- [ ] Widget support contact: project/owner name + email from public config
+- [ ] Widget support contact: app/owner name + email from public config
 - [ ] LLM + agent reply (Grok via `XAI_API_KEY`): draft assist, human agent reply pushed to widget thread, visitor id + message history (not auto-triage vapor)
 
 ## P3 — Notify & integrate
@@ -34,7 +34,7 @@ Order = priority (top first within each section).
 ## P4 — Later / nice-to-have
 
 - [ ] User/org management — invite by email, role admin | member (deferred post-launch)
-- [ ] Per-project retention (default 90 days) + auto-purge job
+- [ ] Per-app retention (default 90 days) + auto-purge job
 - [ ] Short-lived HMAC URLs for external screenshot sharing
 - [ ] Roadmap tab in widget (drag-to-rank)
 - [ ] Loom-style guided walkthrough (face-in-corner)
@@ -56,10 +56,11 @@ Order = priority (top first within each section).
 - [x] SRI + `data-api` + script-origin API base
 - [x] Global API (`identify` / `init` / `show`)
 - [x] CSP-safe DOM + constructable stylesheet
-- [x] Greeting from project config
+- [x] Greeting from app config
 
 ### Dashboard
 - [x] Submissions empty-state + setup snippet
 - [x] Landing/legal feedback-specific copy
-- [x] Project picker; submissions project labels + All-projects inbox
-- [x] Changelog always project-scoped
+- [x] App picker; submissions app labels + All-apps inbox
+- [x] Changelog always app-scoped
+- [x] Call them apps (not projects) in the UI

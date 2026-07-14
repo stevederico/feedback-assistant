@@ -168,7 +168,7 @@ export default function SubmissionsView() {
 
       {!loading && (!projects || projects.length === 0) && (
         <Card className="p-6">
-          <div className="text-sm">Create a project first to receive submissions.</div>
+          <div className="text-sm">Create an app first to receive submissions.</div>
         </Card>
       )}
 
@@ -220,11 +220,11 @@ export default function SubmissionsView() {
                   <code>{embedSnippet(setupProject.publicKey)}</code>
                 </pre>
                 <p className="text-xs text-muted-foreground text-left">
-                  This is a preview — the key is masked. Open the project to copy your full widget key.
+                  This is a preview — the key is masked. Open the app to copy your full widget key.
                 </p>
-                <Button onClick={() => navigate('/app/projects')}>Set up widget</Button>
+                <Button onClick={() => navigate('/app/apps')}>Set up widget</Button>
                 <ol className="text-xs text-muted-foreground text-left list-decimal pl-4 flex flex-col gap-1">
-                  <li>Open the project in Projects to get the full widget key.</li>
+                  <li>Open the app in Apps to get the full widget key.</li>
                   <li>Paste the snippet before <code>&lt;/body&gt;</code> on your site.</li>
                   <li>Submit a test message — it appears here.</li>
                 </ol>

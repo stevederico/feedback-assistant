@@ -38,8 +38,8 @@
     "devBackendURL": "http://localhost:8000/api",
     "pages": [
         {
-            "title": "Projects",
-            "url": "projects",
+            "title": "Apps",
+            "url": "apps",
             "icon": "folder"
         },
         {

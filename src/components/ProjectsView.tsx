@@ -74,10 +74,10 @@ export default function ProjectsView() {
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <Header title="Projects">
+      <Header title="Apps">
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger render={<Button size="sm" />}>
-            <Plus size={16} /> New project
+            <Plus size={16} /> New app
           </DialogTrigger>
           <CreateProjectDialog
             onCreated={(p) => {
@@ -90,14 +90,14 @@ export default function ProjectsView() {
       </Header>
 
       {projects === null && (
-        <div className="text-sm text-muted-foreground">Loading projects…</div>
+        <div className="text-sm text-muted-foreground">Loading apps…</div>
       )}
 
       {projects !== null && projects.length === 0 && (
         <Card className="p-6 flex flex-col items-start gap-3">
-          <div className="text-base font-medium">No projects yet</div>
+          <div className="text-base font-medium">No apps yet</div>
           <p className="text-sm text-muted-foreground">
-            Create a project to get a widget key.
+            Create an app to get a widget key.
           </p>
         </Card>
       )}
@@ -125,14 +125,14 @@ export default function ProjectsView() {
                   <KeyRound size={14} /> Rotate
                 </Button>
                 <AlertDialog>
-                  <AlertDialogTrigger render={<Button size="sm" variant="outline" title="Delete project" />}>
+                  <AlertDialogTrigger render={<Button size="sm" variant="outline" title="Delete app" />}>
                     <Trash2 size={14} />
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete "{p.name}"?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This permanently removes the project, its submissions, screenshots,
+                        This permanently removes the app, its submissions, screenshots,
                         and changelog entries. The widget key will stop working immediately.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -160,7 +160,7 @@ export default function ProjectsView() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {newKey?.rotated ? 'New key for ' : 'Project created — '}
+              {newKey?.rotated ? 'New key for ' : 'App created — '}
               {newKey?.name}
             </DialogTitle>
             <DialogDescription>
@@ -242,9 +242,9 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
     <DialogContent>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <DialogHeader>
-          <DialogTitle>New project</DialogTitle>
+          <DialogTitle>New app</DialogTitle>
           <DialogDescription>
-            Each project gets its own widget key, daily budget, and changelog.
+            Each app gets its own widget key, daily budget, and changelog.
           </DialogDescription>
         </DialogHeader>
 
@@ -289,7 +289,7 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
 
         <DialogFooter>
           <Button type="submit" disabled={submitting}>
-            {submitting ? 'Creating…' : 'Create project'}
+            {submitting ? 'Creating…' : 'Create app'}
           </Button>
         </DialogFooter>
       </form>

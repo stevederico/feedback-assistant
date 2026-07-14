@@ -81,12 +81,12 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{project.name}</DialogTitle>
-          <DialogDescription>Project details, widget key, and embed snippet.</DialogDescription>
+          <DialogDescription>App details, widget key, and embed snippet.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-3">
-            <div className="text-sm font-medium">Project</div>
+            <div className="text-sm font-medium">App</div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="proj-name">Name</Label>
               <Input id="proj-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />

@@ -237,7 +237,7 @@ export default function ChangelogView() {
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <Header title={current ? `Changelog · ${current.name}` : 'Changelog'}>
-        {/* Always show project scope — changelog is per-project, never org-wide. */}
+        {/* Always show app scope — changelog is per-app, never org-wide. */}
         <ProjectPicker
           projects={projects}
           currentId={currentId}
@@ -253,7 +253,7 @@ export default function ChangelogView() {
               <DialogTitle>New changelog entry</DialogTitle>
               <DialogDescription>
                 {current
-                  ? `Adds to "${current.name}" only. Shows in that project's widget What's New tab. Drafts stay hidden until published.`
+                  ? `Adds to "${current.name}" only. Shows in that app's widget What's New tab. Drafts stay hidden until published.`
                   : "Shows in the widget's What's New tab. Drafts are hidden until published."}
               </DialogDescription>
             </DialogHeader>
@@ -268,13 +268,13 @@ export default function ChangelogView() {
 
       {!loading && (!projects || projects.length === 0) && (
         <Card className="p-6">
-          <div className="text-sm">Create a project to manage its changelog.</div>
+          <div className="text-sm">Create an app to manage its changelog.</div>
         </Card>
       )}
 
       {current && entries !== null && entries.length === 0 && (
         <Card className="p-6 text-sm text-muted-foreground">
-          No entries for "{current.name}" yet. Create one to show up in that project's
+          No entries for "{current.name}" yet. Create one to show up in that app's
           widget What's New tab.
         </Card>
       )}
@@ -304,7 +304,7 @@ export default function ChangelogView() {
           <DialogHeader>
             <DialogTitle>Edit entry</DialogTitle>
             {current && (
-              <DialogDescription>Project: {current.name}</DialogDescription>
+              <DialogDescription>App: {current.name}</DialogDescription>
             )}
           </DialogHeader>
           {editing && (
