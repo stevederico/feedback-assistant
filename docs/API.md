@@ -1,342 +1,376 @@
 # API Reference
 
-## Overview
+Two surfaces on the same Hono server:
 
-The Skateboard backend provides a RESTful API for authentication, user management, payments, and usage tracking. All endpoints are prefixed with `/api`.
+| Surface | Prefix | Auth | Use |
+|---------|--------|------|-----|
+| Dashboard | `/api/*` | Cookie session + CSRF on mutations | Admin SPA |
+| Widget | `/v1/*` | `X-Project-Key: pk_…` | Embed on customer sites |
 
-## Authentication
-
-Authentication uses JWT tokens stored in HttpOnly cookies with CSRF protection.
-
-### Headers
-
-State-changing requests (POST, PUT, DELETE) require a CSRF token:
-```
-X-CSRF-Token: <csrf_token>
-```
-
-### Cookie Authentication
-
-The `token` cookie is automatically sent with credentials. No manual token handling required.
+Widget static assets: `/widget.js`, `/widget/v<version>.js`, `/widget/html2canvas-v1.js`.
 
 ---
 
-## Endpoints
+## Auth model
 
-### Authentication
+### Dashboard (`/api`)
 
-#### POST /api/signup
-Create a new user account.
+- JWT in HttpOnly `token` cookie (30 days)
+- Mutations (POST/PUT/PATCH/DELETE) need `X-CSRF-Token` matching the CSRF cookie
+- Send credentials (`credentials: 'include'`); skateboard-ui `apiRequest` does this
+- Cross-tenant access returns **404** (no existence leak), not 403
 
-**Request Body:**
-```json
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "password": "securepassword"
-}
-```
+### Widget (`/v1`)
 
-**Validation:**
-- `name`: 1-100 characters
-- `email`: Valid email, max 254 characters
-- `password`: 6-72 characters
-
-**Response (200):**
-```json
-{
-  "_id": "uuid",
-  "email": "john@example.com",
-  "name": "John Doe",
-  "created_at": 1704067200,
-  "subscription": null,
-  "usage": { "count": 0, "reset_at": null }
-}
-```
-
-**Cookies Set:**
-- `token`: JWT token (HttpOnly, 30 days)
-- `<appname>_csrf`: CSRF token (24 hours)
+- Header: `X-Project-Key: pk_<32 hex chars>`
+- No cookies, no CSRF
+- CORS: `Access-Control-Allow-Origin: *` (credentials false)
+- When `Projects.allowed_origins` is non-empty, `Origin` must match or request is **403**
+- Empty allowlist = allow all origins (including missing `Origin`)
 
 ---
 
-#### POST /api/signin
-Sign in to existing account.
+## Dashboard API
 
-**Request Body:**
+All routes below are under `/api`. Auth required unless noted.
+
+### Public / utility
+
+#### GET `/api/health`
+
 ```json
-{
-  "email": "john@example.com",
-  "password": "securepassword"
-}
+{ "status": "ok", "timestamp": 1710000000000 }
 ```
 
-**Response (200):**
+#### GET `/api/widget-integrity`
+
+Public. Embed snippet SRI metadata.
+
 ```json
-{
-  "_id": "uuid",
-  "email": "john@example.com",
-  "name": "John Doe",
-  "created_at": 1704067200,
-  "subscription": {
-    "stripeID": "cus_xxx",
-    "status": "active",
-    "expires": 1735689600
-  }
-}
+{ "version": "3.10.0", "integrity": "sha384-…" }
 ```
 
-**Cookies Set:** Same as signup
+`integrity` may be `null` in dev when the bundle is missing.
 
 ---
 
-#### POST /api/signout
-Sign out current user.
+### Authentication (Skateboard)
 
-**Response (200):**
+#### POST `/api/signup`
+
 ```json
-{ "message": "Signed out successfully" }
+{ "name": "Ada", "email": "ada@example.com", "password": "securepassword" }
 ```
 
-**Cookies Cleared:** `token`, `<appname>_csrf`
+Creates user + default org (`Users.org_id`). Sets `token` + CSRF cookies.
+
+#### POST `/api/signin`
+
+```json
+{ "email": "ada@example.com", "password": "securepassword" }
+```
+
+#### POST `/api/signout`
+
+Auth required. Clears session cookies.
+
+#### GET `/api/me` · PUT `/api/me`
+
+Current user. PUT body: `{ "name": "…" }` (CSRF).
+
+#### POST `/api/usage`
+
+Optional free-tier usage check/track (Skateboard). Body: `{ "operation": "check" | "track" }`.
+
+#### POST `/api/checkout` · POST `/api/portal` · POST `/api/payment`
+
+Stripe checkout, billing portal, and webhook. Only active when `STRIPE_KEY` / `STRIPE_ENDPOINT_SECRET` are set.
 
 ---
 
-### User Management
+### Projects (apps)
 
-#### GET /api/me
-Get current authenticated user.
+Org-scoped. List keys are **masked** (`pk_ab…wxyz`); full key returned once on create and rotate.
 
-**Response (200):**
+#### GET `/api/projects`
+
 ```json
 {
-  "_id": "uuid",
-  "email": "john@example.com",
-  "name": "John Doe",
-  "created_at": 1704067200,
-  "subscription": { ... },
-  "usage": { "count": 5, "reset_at": 1706745600 }
+  "projects": [{
+    "id": "uuid",
+    "name": "Marketing site",
+    "publicKey": "pk_ab…wxyz",
+    "allowedOrigins": "https://example.com",
+    "dailyBudget": 1000,
+    "greeting": "How can we help?",
+    "createdAt": 1710000000000
+  }]
 }
 ```
+
+#### POST `/api/projects`
+
+```json
+{
+  "name": "Marketing site",
+  "allowedOrigins": "https://example.com,https://app.example.com",
+  "dailyBudget": 1000,
+  "greeting": "How can we help?"
+}
+```
+
+- `name` required, max 200
+- `dailyBudget` default 1000, clamped 1…1_000_000
+- `greeting` max 500
+- **201** — response includes full `publicKey` once
+
+#### PATCH `/api/projects/:id`
+
+Partial update: `name`, `allowedOrigins`, `dailyBudget`, `greeting` (or `null`).
+
+#### DELETE `/api/projects/:id`
+
+Deletes submissions, screenshots (DB + files), changelog, daily ingest, then project.
+
+#### POST `/api/projects/:id/rotate-key`
+
+```json
+{ "id": "uuid", "publicKey": "pk_…" }
+```
+
+Full new key once. Old embed keys stop working immediately.
 
 ---
 
-#### PUT /api/me
-Update current user profile.
+### Submissions
 
-**Request Body:**
+Statuses: `new` | `read` | `archived`.
+
+**List query params** (both list endpoints):
+
+| Param | Notes |
+|-------|--------|
+| `status` | `new` \| `read` \| `archived` |
+| `q` | Free-text: message, name, email, url |
+| `from` / `to` | Unix ms timestamps |
+| `limit` | 1–200, default 50 |
+| `offset` | default 0 |
+| `projectId` | Org-wide list only — filter to one project |
+
+#### GET `/api/submissions`
+
+Org-wide inbox. Includes `projectName` on each row.
+
 ```json
 {
-  "name": "New Name"
+  "submissions": [{
+    "id": "uuid",
+    "projectId": "uuid",
+    "projectName": "Marketing site",
+    "message": "…",
+    "url": "https://…",
+    "endUserName": null,
+    "endUserEmail": null,
+    "screenshotId": null,
+    "status": "new",
+    "createdAt": 1710000000000
+  }],
+  "total": 42,
+  "limit": 50,
+  "offset": 0
 }
 ```
 
-**Response (200):**
+#### GET `/api/projects/:id/submissions`
+
+Same shape, single-project scope.
+
+#### GET `/api/submissions/:id`
+
+Detail: list fields plus `userAgent`, `appVersion`, `endUserId`.
+
+#### PATCH `/api/submissions/:id`
+
 ```json
-{
-  "_id": "uuid",
-  "email": "john@example.com",
-  "name": "New Name",
-  ...
-}
+{ "status": "read" }
 ```
+
+#### DELETE `/api/submissions/:id`
+
+Removes submission; deletes screenshot file if no other submission references it.
+
+#### GET `/api/screenshots/:id`
+
+Auth-gated binary stream (`Content-Type` from DB). **403** if not in user's org.
 
 ---
 
-### Subscription
+### Changelog (admin)
 
-#### GET /api/isSubscriber
-Check if current user has active subscription.
+#### GET `/api/projects/:id/changelog`
 
-**Response (200):**
+All entries (draft + published), ordered by `sortOrder`.
+
 ```json
-{ "isSubscriber": true }
+{
+  "changelog": [{
+    "id": "uuid",
+    "title": "New search",
+    "body": "Markdown…",
+    "sortOrder": 1,
+    "publishedAt": 1710000000000,
+    "createdAt": 1710000000000
+  }]
+}
 ```
-or
+
+`publishedAt: null` = draft (widget does not see it).
+
+#### POST `/api/projects/:id/changelog`
+
 ```json
-{ "isSubscriber": false }
+{ "title": "…", "body": "…", "publish": true }
 ```
+
+- `title` required, max 200; `body` max 50_000
+- Appended at end of `sortOrder`
+
+#### PATCH `/api/changelog/:id`
+
+`title`, `body`, and/or `publish` (boolean — sets or clears `publishedAt`).
+
+#### DELETE `/api/changelog/:id`
+
+#### POST `/api/projects/:id/changelog/reorder`
+
+```json
+{ "items": [{ "id": "uuid", "sortOrder": 0 }, { "id": "uuid", "sortOrder": 1 }] }
+```
+
+Ids not owned by the project are ignored.
 
 ---
 
-### Usage Tracking
+## Widget API (`/v1`)
 
-#### POST /api/usage
-Check or track usage for free users.
+### POST `/v1/submissions`
 
-**Request Body:**
+Headers: `Content-Type: application/json`, `X-Project-Key`.
+
 ```json
 {
-  "operation": "check"
-}
-```
-or
-```json
-{
-  "operation": "track"
-}
-```
-
-**Response (200) - Free User:**
-```json
-{
-  "remaining": 15,
-  "total": 20,
-  "isSubscriber": false,
-  "used": 5,
-  "subscription": null
+  "message": "Button broken on checkout",
+  "url": "https://app.example.com/checkout",
+  "userAgent": "…",
+  "appVersion": "1.2.3",
+  "endUserId": "u_123",
+  "endUserName": "Ada",
+  "endUserEmail": "ada@example.com",
+  "screenshotId": "uuid-from-screenshots"
 }
 ```
 
-**Response (200) - Subscriber:**
+| Field | Rules |
+|-------|--------|
+| `message` | Required, max 5000 |
+| `url` | Optional, max 2000 |
+| `userAgent` | Optional, max 500 |
+| `appVersion` | Optional, max 64 |
+| `endUser*` | Optional, truncated |
+| `screenshotId` | Must exist for this project |
+
+**200:** `{ "ok": true, "submissionId": "uuid" }`
+
+Errors: **401** bad key, **403** origin, **413** message too long, **429** IP rate limit or daily budget.
+
+### POST `/v1/screenshots`
+
+Multipart form field `file` (JPEG or PNG). Max size: `MAX_SCREENSHOT_BYTES` (default 2 MiB).
+
+**200:** `{ "screenshotId": "uuid" }`
+
+Errors: **415** wrong MIME, **413** too large.
+
+### GET `/v1/projects/:pk/widget`
+
+Public config. Unknown keys return `{ "greeting": null }` (no leak). Cache: 60s.
+
+```json
+{ "greeting": "How can we help?" }
+```
+
+Path is `/widget` not `/config` (Cloudflare WAF blocks paths containing `config`).
+
+### GET `/v1/projects/:pk/changelog`
+
+Published entries only (`published_at IS NOT NULL`), by `sort_order`.
+
 ```json
 {
-  "remaining": -1,
-  "total": -1,
-  "isSubscriber": true,
-  "subscription": {
-    "status": "active",
-    "expiresAt": "2025-01-01T00:00:00.000Z"
-  }
+  "changelog": [{
+    "id": "uuid",
+    "title": "…",
+    "body": "…",
+    "publishedAt": 1710000000000
+  }]
 }
 ```
 
-**Response (429) - Limit Reached:**
-```json
-{
-  "error": "Usage limit reached",
-  "remaining": 0,
-  "total": 20,
-  "isSubscriber": false
-}
-```
+Unknown keys → `{ "changelog": [] }`.
 
 ---
 
-### Payments (Stripe)
+## Widget static assets
 
-#### POST /api/checkout
-Create Stripe checkout session.
-
-**Request Body:**
-```json
-{
-  "email": "john@example.com",
-  "lookup_key": "premium_monthly"
-}
-```
-
-**Response (200):**
-```json
-{
-  "url": "https://checkout.stripe.com/...",
-  "id": "cs_xxx",
-  "customerID": "cus_xxx"
-}
-```
+| URL | Cache | Notes |
+|-----|--------|--------|
+| `/widget.js` | Short (~5 min) | Always latest build — default embed |
+| `/widget/v<version>.js` | Immutable | Pin + SRI for strict CSP |
+| `/widget/html2canvas-v1.js` | Immutable | Lazy-loaded by the widget for screenshots |
 
 ---
 
-#### POST /api/portal
-Create Stripe billing portal session.
+## Rate limiting
 
-**Request Body:**
-```json
-{
-  "customerID": "cus_xxx"
-}
-```
-
-**Response (200):**
-```json
-{
-  "url": "https://billing.stripe.com/...",
-  "id": "bps_xxx"
-}
-```
+| Layer | Limit | Applies to |
+|-------|--------|------------|
+| IP token bucket | 60 req/min (refill 1/s) | `/v1/submissions`, `/v1/screenshots` |
+| Project daily budget | `Projects.daily_budget` (default 1000) | Submissions only (DB `DailyIngest`) |
+| Auth (Skateboard) | Login lockout after failed attempts | `/api/signin` |
+| Global / payments | Skateboard middleware | Checkout, portal, general API |
 
 ---
 
-#### POST /api/payment
-Stripe webhook endpoint. Handles subscription events.
-
-**Events Handled:**
-- `customer.subscription.created`
-- `customer.subscription.updated`
-- `customer.subscription.deleted`
-
----
-
-### Health Check
-
-#### GET /api/health
-Health check endpoint.
-
-**Response (200):**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-01-01T00:00:00.000Z",
-  "database": "connected"
-}
-```
-
----
-
-## Rate Limiting
-
-| Route Type | Limit | Window |
-|------------|-------|--------|
-| Auth routes (`/signin`, `/signup`) | 10 requests | 15 minutes |
-| Payment routes (`/checkout`, `/portal`) | 5 requests | 15 minutes |
-| All other routes | 300 requests | 15 minutes |
-
-Rate limit headers:
-- `X-RateLimit-Remaining`: Requests remaining
-- `Retry-After`: Seconds until limit resets (on 429)
-
----
-
-## Error Responses
-
-All errors return JSON with an `error` field:
+## Errors
 
 ```json
-{ "error": "Error message here" }
+{ "error": "human-readable message" }
 ```
-
-### Status Codes
 
 | Code | Meaning |
 |------|---------|
-| 400 | Bad Request - Invalid input |
-| 401 | Unauthorized - Not authenticated |
-| 403 | Forbidden - Invalid CSRF or permission denied |
-| 404 | Not Found - Resource doesn't exist |
-| 429 | Too Many Requests - Rate limited |
-| 500 | Internal Server Error |
-| 503 | Service Unavailable - Auth disabled |
+| 400 | Bad input |
+| 401 | Missing/invalid session or project key |
+| 403 | CSRF, origin allowlist, or forbidden resource |
+| 404 | Not found (also used for cross-tenant) |
+| 413 | Payload too large |
+| 415 | Unsupported media type |
+| 429 | Rate limit / daily budget |
+| 500 | Server error |
 
 ---
 
-## Environment Variables
+## Environment variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `JWT_SECRET` | Secret for JWT signing | Yes |
-| `STRIPE_KEY` | Stripe secret key | Yes |
-| `STRIPE_ENDPOINT_SECRET` | Stripe webhook secret | Yes |
-| `FREE_USAGE_LIMIT` | Monthly limit for free users | No (default: 20) |
-| `CORS_ORIGINS` | Comma-separated allowed origins | No |
-| `FRONTEND_URL` | Frontend URL for redirects | No |
-| `PORT` | Server port | No (default: 8000) |
-
----
-
-## Known Limitations
-
-### Password Reset
-
-Password reset functionality is not yet implemented. Users who forget their password must contact support for manual account recovery.
-
-**Planned for future release:** Self-service password reset via email with time-limited tokens.
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `JWT_SECRET` | Yes | Session signing |
+| `CORS_ORIGINS` | Prod | Comma-separated dashboard origins |
+| `FRONTEND_URL` | Prod | Redirects |
+| `PORT` | No | Default 8000 |
+| `FREE_USAGE_LIMIT` | No | Default 20 |
+| `MAX_SCREENSHOT_BYTES` | No | Default 2 097 152 |
+| `UPLOADS_DIR` | No | Default `./databases/uploads` |
+| `STRIPE_KEY` | No | Enables payments |
+| `STRIPE_ENDPOINT_SECRET` | No | Webhook verify |
+| `POSTGRES_URL` / `MONGODB_URL` | No | Non-SQLite adapters |

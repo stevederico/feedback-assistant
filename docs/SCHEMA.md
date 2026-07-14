@@ -1,224 +1,177 @@
 # Database Schema
 
-## Overview
+Default store: **SQLite** via `node:sqlite` (`backend/config.json` → `FeedbackAssistant.db`).
 
-Skateboard supports three database types through a unified adapter pattern:
-- **SQLite** (default) - File-based, zero configuration
-- **PostgreSQL** - Production-ready relational database
-- **MongoDB** - Document-based NoSQL database
+Postgres and MongoDB adapters exist from Skateboard for Users/Auths; **feedback tables are bootstrapped for SQLite** in `backend/feedback-schema.ts` on every server start (idempotent `IF NOT EXISTS` + guarded `ALTER`).
 
-## Tables/Collections
+---
+
+## Entity model
+
+```
+Orgs 1──* Users          (Users.org_id)
+Orgs 1──* Projects
+Projects 1──* Submissions
+Projects 1──* Screenshots
+Projects 1──* Changelog
+Projects 1──* DailyIngest  (composite PK: project_id + day_utc)
+```
+
+Screenshots are files under `UPLOADS_DIR` (default `backend/databases/uploads/<uuid>`); metadata only in DB.
+
+---
+
+## Skateboard base tables
 
 ### Users
 
-Stores user profile and subscription information.
-
-#### SQLite / PostgreSQL
-
-```sql
-CREATE TABLE Users (
-  _id TEXT PRIMARY KEY,
-  email TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  created_at BIGINT NOT NULL,
-  subscription_stripeID TEXT,
-  subscription_expires BIGINT,
-  subscription_status TEXT,
-  usage_count INTEGER DEFAULT 0,
-  usage_reset_at BIGINT
-);
-
-CREATE UNIQUE INDEX idx_users_email ON Users(email);
-```
-
-#### MongoDB
-
-```javascript
-{
-  _id: String,           // UUID
-  email: String,         // Unique
-  name: String,
-  created_at: Number,    // Unix timestamp
-  subscription: {
-    stripeID: String,    // Stripe customer ID
-    expires: Number,     // Unix timestamp
-    status: String       // "active", "canceled", etc.
-  },
-  usage: {
-    count: Number,       // Usage count this period
-    reset_at: Number     // When usage resets (Unix timestamp)
-  }
-}
-```
-
-**Note:** SQL databases flatten nested objects (e.g., `subscription.stripeID` → `subscription_stripeID`). Adapters handle transformation.
-
----
+| Column | Type | Notes |
+|--------|------|--------|
+| `_id` | TEXT PK | UUID |
+| `email` | TEXT UNIQUE | |
+| `name` | TEXT | |
+| `created_at` | BIGINT | Unix ms |
+| `subscription_*` | … | Stripe fields (flattened) |
+| `usage_count` / `usage_reset_at` | … | Free-tier usage |
+| `org_id` | TEXT | **Feedback addition** — workspace link (nullable until backfill) |
 
 ### Auths
 
-Stores authentication credentials separately from user data.
+| Column | Type | Notes |
+|--------|------|--------|
+| `email` | TEXT PK | |
+| `password` | TEXT | scrypt (legacy bcrypt verified + rehashed on sign-in) |
+| `userID` | TEXT | → Users._id |
 
-#### SQLite / PostgreSQL
+---
+
+## Feedback tables
+
+Created by `bootstrapFeedbackSchema(db)`.
+
+### Orgs
 
 ```sql
-CREATE TABLE Auths (
-  email TEXT PRIMARY KEY,
-  password TEXT NOT NULL,
-  userID TEXT NOT NULL REFERENCES Users(_id)
+CREATE TABLE Orgs (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  created_at  INTEGER NOT NULL
 );
 ```
 
-#### MongoDB
+One workspace per signed-up user (created on signup or lazy-backfilled on first dashboard call).
 
-```javascript
-{
-  email: String,    // Primary key
-  password: String, // bcrypt hash
-  userID: String    // Reference to Users._id
-}
+### Projects
+
+```sql
+CREATE TABLE Projects (
+  id              TEXT PRIMARY KEY,
+  org_id          TEXT NOT NULL,
+  name            TEXT NOT NULL,
+  public_key      TEXT UNIQUE NOT NULL,  -- pk_ + 32 hex
+  allowed_origins TEXT NOT NULL DEFAULT '',  -- CSV origins; empty = allow all
+  daily_budget    INTEGER NOT NULL DEFAULT 1000,
+  greeting        TEXT,                   -- widget bubble text
+  created_at      INTEGER NOT NULL,
+  FOREIGN KEY (org_id) REFERENCES Orgs(id)
+);
+CREATE INDEX idx_projects_org ON Projects(org_id);
+CREATE INDEX idx_projects_public_key ON Projects(public_key);
 ```
 
+UI label: **Apps**. API still uses `projects`.
+
+### Submissions
+
+```sql
+CREATE TABLE Submissions (
+  id              TEXT PRIMARY KEY,
+  project_id      TEXT NOT NULL,
+  message         TEXT NOT NULL,
+  url             TEXT,
+  user_agent      TEXT,
+  app_version     TEXT,
+  end_user_id     TEXT,
+  end_user_name   TEXT,
+  end_user_email  TEXT,
+  screenshot_id   TEXT,
+  status          TEXT NOT NULL DEFAULT 'new',  -- new | read | archived
+  created_at      INTEGER NOT NULL,
+  FOREIGN KEY (project_id) REFERENCES Projects(id)
+);
+CREATE INDEX idx_submissions_project_created
+  ON Submissions(project_id, created_at DESC);
+CREATE INDEX idx_submissions_project_status
+  ON Submissions(project_id, status);
+```
+
+### Screenshots
+
+```sql
+CREATE TABLE Screenshots (
+  id            TEXT PRIMARY KEY,  -- same UUID as file name on disk
+  project_id    TEXT NOT NULL,
+  content_type  TEXT NOT NULL,      -- image/jpeg | image/png
+  size_bytes    INTEGER NOT NULL,
+  created_at    INTEGER NOT NULL,
+  FOREIGN KEY (project_id) REFERENCES Projects(id)
+);
+```
+
+### Changelog
+
+```sql
+CREATE TABLE Changelog (
+  id           TEXT PRIMARY KEY,
+  project_id   TEXT NOT NULL,
+  title        TEXT NOT NULL,
+  body_md      TEXT NOT NULL,
+  sort_order   INTEGER NOT NULL,
+  published_at INTEGER,            -- NULL = draft
+  created_at   INTEGER NOT NULL,
+  FOREIGN KEY (project_id) REFERENCES Projects(id)
+);
+CREATE INDEX idx_changelog_project_sort
+  ON Changelog(project_id, sort_order);
+```
+
+### DailyIngest
+
+```sql
+CREATE TABLE DailyIngest (
+  project_id TEXT NOT NULL,
+  day_utc    TEXT NOT NULL,  -- YYYY-MM-DD
+  count      INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (project_id, day_utc)
+);
+```
+
+Incremented when a widget submission is accepted; enforces `Projects.daily_budget`.
+
 ---
 
-## Field Descriptions
+## Config
 
-### Users Table
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `_id` | String (UUID) | Unique identifier |
-| `email` | String | User's email (unique) |
-| `name` | String | Display name |
-| `created_at` | Unix timestamp | Account creation time |
-| `subscription.stripeID` | String | Stripe customer ID |
-| `subscription.expires` | Unix timestamp | When subscription ends |
-| `subscription.status` | String | Stripe subscription status |
-| `usage.count` | Integer | Actions used this period |
-| `usage.reset_at` | Unix timestamp | When usage counter resets |
-
-### Auths Table
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `email` | String | User's email (primary key) |
-| `password` | String | bcrypt hash (10 rounds) |
-| `userID` | String | Reference to Users._id |
-
----
-
-## Subscription Status Values
-
-| Status | Description |
-|--------|-------------|
-| `active` | Subscription is active and paid |
-| `canceled` | Canceled but access until period ends |
-| `past_due` | Payment failed, grace period |
-| `unpaid` | Payment failed, access revoked |
-| `trialing` | In trial period |
-
----
-
-## Usage Tracking
-
-Free users have a monthly usage limit (default: 20).
-
-- `usage.count` - Incremented on each tracked action
-- `usage.reset_at` - Set to 30 days after first action
-- When `now > reset_at`, counter resets to 0
-- Subscribers (`subscription.status === 'active'`) get unlimited usage
-
----
-
-## Database Configuration
-
-Configuration in `backend/config.json`:
+`backend/config.json`:
 
 ```json
 {
+  "client": "http://localhost:5173",
   "database": {
-    "db": "MyApp",
+    "db": "FeedbackAssistant",
     "dbType": "sqlite",
-    "connectionString": "./databases/MyApp.db"
+    "connectionString": "./databases/FeedbackAssistant.db"
   }
 }
 ```
 
-### Connection Strings
-
-**SQLite:**
-```
-./databases/MyApp.db
-```
-
-**PostgreSQL:**
-```
-postgresql://user:password@localhost:5432/myapp
-${DATABASE_URL}
-```
-
-**MongoDB:**
-```
-mongodb://localhost:27017
-${MONGODB_URL}
-```
-
-Environment variable syntax `${VAR_NAME}` is supported for production deployments.
+Production: mount a **persistent volume** on `backend/databases` (DB + uploads). Do not commit runtime `.db` files.
 
 ---
 
-## Indexes
+## Tenancy rules
 
-### Recommended Indexes
-
-```sql
--- Users table
-CREATE UNIQUE INDEX idx_users_email ON Users(email);
-CREATE INDEX idx_users_subscription ON Users(subscription_status);
-
--- Auths table
-CREATE INDEX idx_auths_userid ON Auths(userID);
-```
-
-MongoDB automatically indexes `_id`. Create email index:
-
-```javascript
-db.Users.createIndex({ email: 1 }, { unique: true });
-```
-
----
-
-## Data Transformation
-
-Adapters transform between nested and flat structures:
-
-**API Response (nested):**
-```json
-{
-  "subscription": {
-    "stripeID": "cus_xxx",
-    "status": "active"
-  }
-}
-```
-
-**SQL Storage (flat):**
-```sql
-subscription_stripeID = 'cus_xxx'
-subscription_status = 'active'
-```
-
-This is handled automatically by the database adapters in `backend/adapters/`.
-
----
-
-## Migration Notes
-
-When switching database types:
-
-1. Export data from current database
-2. Transform nested ↔ flat structure as needed
-3. Import to new database
-4. Update `config.json` with new `dbType` and `connectionString`
-
-The adapter pattern ensures API compatibility regardless of database backend.
+1. Every project has exactly one `org_id`
+2. Dashboard queries always join/filter on the signed-in user's `Users.org_id`
+3. Widget resolves project by `public_key` only — no org cookie
+4. Cross-org resource access → 404/403 as documented in [API.md](./API.md)

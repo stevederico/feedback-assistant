@@ -1,3 +1,7 @@
+3.12.0
+
+  Refresh product docs
+
 3.11.0
 
   Capture tools in header

@@ -1,237 +1,88 @@
 # Migration Guide
 
-## Current Version: 2.6.x
-
-### Quick Upgrade
-
-```bash
-deno install npm:@stevederico/skateboard-ui@latest
-deno install
-```
-
-### What's New in 1.1.x
-
-- **Hono** replaces Express (backend)
-- **Deno 2.3+** runtime
-- All API routes prefixed with `/api`
-- Apps own their `vite.config.js` directly
-- New env vars: `CORS_ORIGINS`, `FRONTEND_URL`
+For **Feedback Assistant** app upgrades and Skateboard-ui bumps. Boilerplate-only history from the original Skateboard template is not repeated here.
 
 ---
 
-## From 1.0.x to 1.1.x
+## App version upgrades
 
-### 1. Update Dependencies
+1. Read root `CHANGELOG.md` for the versions you are jumping
+2. `git pull` / install deps (`bun install` or `npm install`)
+3. Run `npm run test` before deploy
+4. Deploy with a **volume-preserving** strategy so `backend/databases` is not wiped
+5. Schema: `bootstrapFeedbackSchema` runs on startup — new columns/tables are additive (`IF NOT EXISTS` / guarded `ALTER`). No manual SQL for normal upgrades.
 
-```bash
-deno install npm:@stevederico/skateboard-ui@latest
-```
+### Notable recent app changes
 
-### 2. Copy vite.config.js
-
-Apps now own their Vite configuration. Copy from the [reference implementation](https://github.com/stevederico/skateboard/blob/master/vite.config.js).
-
-**Old (1.0.x):**
-```javascript
-import { getSkateboardViteConfig } from '@stevederico/skateboard-ui/Utilities';
-export default getSkateboardViteConfig();
-```
-
-**New (1.1.x):** Full config in your app (see reference)
-
-### 3. Add Environment Variables
-
-```bash
-CORS_ORIGINS=https://yourapp.com
-FRONTEND_URL=https://yourapp.com
-```
+| Version | Impact |
+|---------|--------|
+| 3.10 | UI renames "projects" → "apps"; API paths stay `/projects` |
+| 3.8 | Default embed `/widget.js` auto-updates |
+| 3.7 | Origin allowlist enforced; screenshots cleaned on delete |
+| 3.6 | Submissions list shows project name; org-wide inbox filter |
+| 3.3+ | Versioned widget, SRI, CSP-safe widget, greeting from config |
 
 ---
 
-## From 0.9.x to 1.0.x (Application Shell Architecture)
+## Skateboard / skateboard-ui upgrades
 
-This is the major migration that reduces boilerplate by 95%.
+This repo tracks:
 
-### Benefits
+- `package.json` → `skateboardVersion` (boilerplate lineage)
+- dependency `@stevederico/skateboard-ui`
 
-- **Before**: ~550 lines of boilerplate per app
-- **After**: ~26 lines total
-- Update skateboard-ui once, all apps inherit improvements
+### Safe workflow
 
-### 1. Update Dependencies
+1. Compare `skateboardVersion` to [stevederico/skateboard](https://github.com/stevederico/skateboard) releases
+2. Bump UI: install the target `@stevederico/skateboard-ui` version (repo uses exact pins)
+3. Diff boilerplate files carefully — **do not** overwrite app-specific code
+4. Run `npm run verify:ui` / full `npm run test`
 
-```json
-{
-  "dependencies": {
-    "@stevederico/skateboard-ui": "^2.9.3",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-router-dom": "^7.9.0"
-  }
-}
-```
+### Safe to review from boilerplate
 
-### 2. Simplify main.jsx
+- `backend/server.ts` security/auth changes (merge, don't replace feedback mounts)
+- `backend/adapters/*`
+- `vite.config.ts`, theme CSS imports
 
-**Before (82 lines):**
-```javascript
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Layout from '@stevederico/skateboard-ui/Layout';
-// ... many more imports and manual routing
-```
+### Never auto-overwrite
 
-**After (16 lines):**
-```javascript
-import './assets/styles.css';
-import { createSkateboardApp } from '@stevederico/skateboard-ui/App';
-import constants from './constants.json';
-import HomeView from './components/HomeView.jsx';
+- `src/constants.json`, `src/components/*`, `src/main.tsx`
+- `backend/feedback-*.ts`, `backend/widget-api.ts`, `widget/*`
+- `backend/config.json`
 
-const appRoutes = [
-  { path: 'home', element: <HomeView /> }
-];
-
-createSkateboardApp({ constants, appRoutes, defaultRoute: 'home' });
-```
-
-### 3. Delete context.jsx
-
-Import from skateboard-ui instead:
-
-```javascript
-import { getState } from '@stevederico/skateboard-ui/Context';
-```
-
-### 4. Simplify styles.css
-
-**Before (182 lines):** Full theme definition
-
-**After (7 lines):**
-```css
-@import "@stevederico/skateboard-ui/styles.css";
-
-@source '../../node_modules/@stevederico/skateboard-ui';
-
-@theme {
-  --color-app: var(--color-purple-500);
-}
-```
-
-### 5. Update Component Imports
-
-```javascript
-// Old
-import { getState } from '../context.jsx';
-
-// New
-import { getState } from '@stevederico/skateboard-ui/Context';
-```
-
-### 6. Use DynamicIcon Instead of lucide-react
-
-```javascript
-// Old
-import { Trash2 } from 'lucide-react';
-<Trash2 size={16} />
-
-// New
-import DynamicIcon from '@stevederico/skateboard-ui/DynamicIcon';
-<DynamicIcon name="trash-2" size={16} />
-```
+Template drift notes: vendored/scaffold code can lag the package version label — diff against upstream before trusting a bump. See project `AGENTS.md` → "Updating from Skateboard Boilerplate".
 
 ---
 
-## From Pre-0.9.x (Legacy Migration)
+## Database
 
-For apps using old authentication patterns.
+### SQLite (default)
 
-### Key Changes
+- Path: `backend/databases/FeedbackAssistant.db` (from `config.json`)
+- Startup bootstrap creates feedback tables if missing
+- `Users.org_id` added via pragma-guarded `ALTER` when absent
+- Old users without `org_id` get a workspace on first authenticated dashboard call
 
-1. **httpOnly Cookies**: JWT now stored in secure cookies (not localStorage)
-2. **CSRF Protection**: Required for all mutations
-3. **Credentials Include**: All fetch calls need `credentials: 'include'`
+### Switching dbType
 
-### Update Fetch Calls
-
-**GET Requests:**
-```javascript
-fetch(`${getBackendURL()}/events`, {
-  credentials: 'include',
-  headers: { 'Content-Type': 'application/json' }
-})
-```
-
-**POST/PUT/DELETE Requests:**
-```javascript
-import { getCSRFToken } from '@stevederico/skateboard-ui/Utilities';
-
-const csrfToken = getCSRFToken();
-fetch(`${getBackendURL()}/events`, {
-  method: 'POST',
-  credentials: 'include',
-  headers: {
-    'Content-Type': 'application/json',
-    ...(csrfToken && { 'X-CSRF-Token': csrfToken })
-  },
-  body: JSON.stringify(data)
-})
-```
-
-### Add SignOut Route
-
-```javascript
-import SignOutView from '@stevederico/skateboard-ui/SignOutView';
-
-<Route path="/signout" element={<SignOutView />} />
-```
-
-### Remove Authorization Headers
-
-No longer needed - cookies are sent automatically:
-
-```javascript
-// Remove this
-headers: { 'Authorization': `Bearer ${getCookie('token')}` }
-```
+Adapters support postgres/mongodb for core Users/Auths. Feedback DDL is SQLite-oriented today — treat non-SQLite as unsupported for production feedback tables unless you extend `feedback-schema.ts` and query code.
 
 ---
 
-## Troubleshooting
+## Widget embed migrations
 
-### "Cannot find module '@stevederico/skateboard-ui/Context'"
-Update to skateboard-ui 1.0.0+
+| From | To | Action |
+|------|-----|--------|
+| Pinned `/widget/vX.Y.Z.js` | Auto-update | Point `src` at `/widget.js`; drop SRI or refresh after each pin |
+| Auto `/widget.js` | Pinned | Use `/widget/v{version}.js` + integrity from `/api/widget-integrity` |
+| Key rotation | — | Dashboard **Rotate key**; update every site using the old `pk_` |
 
-### "getSkateboardViteConfig is not a function"
-Update to 1.0.0+ or copy vite.config.js for 1.1.0+
-
-### Routes not working
-Ensure appRoutes paths don't have leading slash:
-```javascript
-{ path: 'home', element: <HomeView /> }  // correct
-{ path: '/home', element: <HomeView /> } // wrong
-```
-
-### CSRF token validation failed
-- Verify `credentials: 'include'` on fetch
-- Check X-CSRF-Token header is present
-
-### 401 on all requests
-- Check httpOnly cookie is being sent
-- Verify CORS_ORIGINS includes your frontend
+After a major widget CSP change, re-test embeds under your site's `Content-Security-Policy` (script-src, connect-src to API host).
 
 ---
 
-## Version Compatibility
+## Breaking operational notes
 
-| Version | Status | Notes |
-|---------|--------|-------|
-| 2.6.x | Current | Latest features, skateboard-ui 2.9.3 |
-| 2.3.x | Supported | Added constants options |
-| 1.x | Upgrade | Use this guide |
-| 0.9.x | Deprecated | Upgrade to 1.x first |
-
-## Reference
-
-- [skateboard repo](https://github.com/stevederico/skateboard) - Reference implementation
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Application Shell deep dive
+- Deleting a project cascades DB rows and unlinks screenshot files
+- Rotating a project key invalidates all live embeds immediately
+- Changing `allowed_origins` from empty → list blocks unmatched browser Origins on `/v1`
