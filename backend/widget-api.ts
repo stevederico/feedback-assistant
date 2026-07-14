@@ -9,8 +9,8 @@
 // Auth model:
 //   - All POSTs require X-Project-Key: pk_*  (looked up against Projects table)
 //   - No session cookie, no CSRF — widget runs on arbitrary customer origins
-//   - Origin header is logged but NOT enforced (it's spoofable from non-browsers)
-//   - Rate limit + per-project daily budget land in step 5
+//   - Per-project allowed_origins enforced when non-empty (empty = allow all)
+//   - Rate limit + per-project daily budget
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -22,6 +22,7 @@ import {
   isAllowedMime,
   getMaxScreenshotBytes,
 } from './feedback-uploads.ts';
+import { parseAllowedOrigins, isOriginAllowed } from './feedback-origin.ts';
 import type { Logger } from './types.ts';
 
 const MAX_MESSAGE_CHARS = 5000;
@@ -32,6 +33,8 @@ interface ProjectKeyRow {
   org_id: string;
   daily_budget: number;
   greeting: string | null;
+  /** Raw CSV from Projects.allowed_origins. */
+  allowed_origins: string;
 }
 
 /** A single node:sqlite result row (column name -> output value). */
@@ -70,14 +73,38 @@ function num(row: Row, column: string): number {
  */
 function findProjectByKey(db: DatabaseSync, publicKey: string | undefined): ProjectKeyRow | null {
   if (!publicKey || !publicKey.startsWith('pk_')) return null;
-  const row = db.prepare('SELECT id, org_id, daily_budget, greeting FROM Projects WHERE public_key = ?').get(publicKey);
+  const row = db.prepare(
+    'SELECT id, org_id, daily_budget, greeting, allowed_origins FROM Projects WHERE public_key = ?',
+  ).get(publicKey);
   if (!row) return null;
   return {
     id: str(row, 'id'),
     org_id: str(row, 'org_id'),
     daily_budget: num(row, 'daily_budget'),
     greeting: strOrNull(row, 'greeting'),
+    allowed_origins: strOrNull(row, 'allowed_origins') ?? '',
   };
+}
+
+/**
+ * 403 when the project has a non-empty allowlist and Origin is not listed.
+ * Empty allowlist = allow all (including missing Origin).
+ *
+ * @returns A Response to return, or null when the request may proceed
+ */
+function rejectIfOriginBlocked(
+  c: { req: { header: (name: string) => string | undefined } },
+  project: ProjectKeyRow,
+  log: Logger,
+): Response | null {
+  const allowed = parseAllowedOrigins(project.allowed_origins);
+  const origin = c.req.header('Origin') ?? null;
+  if (isOriginAllowed(origin, allowed)) return null;
+  log.warn?.('widget origin rejected', {
+    projectId: project.id,
+    origin,
+  });
+  return Response.json({ error: 'origin not allowed' }, { status: 403 });
 }
 
 /** Extract a human-readable message from an unknown thrown value. */
@@ -106,8 +133,8 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
   };
   const app = new Hono();
 
-  // Wide-open CORS for ingest — widgets run on customer origins.
-  // Origin allowlist (per-project) is hygiene only; not enforced here.
+  // CORS stays wide open (credentials: false). Per-project allowlist is
+  // enforced after key lookup via rejectIfOriginBlocked (app-level 403).
   app.use(
     '*',
     cors({
@@ -126,6 +153,8 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
     const publicKey = c.req.header('X-Project-Key');
     const project = findProjectByKey(db, publicKey);
     if (!project) return c.json({ error: 'invalid or missing X-Project-Key' }, 401);
+    const blocked = rejectIfOriginBlocked(c, project, log);
+    if (blocked) return blocked;
 
     // Per-project daily budget. Increments the counter; rejects if over.
     const overBudget = enforceProjectBudget(db, project.id, project.daily_budget, c);
@@ -187,6 +216,8 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
     const publicKey = c.req.header('X-Project-Key');
     const project = findProjectByKey(db, publicKey);
     if (!project) return c.json({ error: 'invalid or missing X-Project-Key' }, 401);
+    const blocked = rejectIfOriginBlocked(c, project, log);
+    if (blocked) return blocked;
 
     // Parse multipart. Hono returns a File-like object.
     let file: File | string | null = null;
@@ -240,15 +271,20 @@ export function createWidgetApi({ logger, db }: WidgetApiOptions): Hono {
     // Public per-project widget config (greeting). Named /widget rather than
     // /config because Cloudflare's WAF blocks any path containing "config".
     // Mirrors the changelog endpoint's no-leak posture: unknown keys get
-    // {greeting:null} (200, not 404).
+    // {greeting:null} (200, not 404). Known keys still enforce origin allowlist.
     const project = findProjectByKey(db, c.req.param('pk'));
     c.header('Cache-Control', 'public, max-age=60');
-    return c.json({ greeting: project?.greeting ?? null });
+    if (!project) return c.json({ greeting: null });
+    const blocked = rejectIfOriginBlocked(c, project, log);
+    if (blocked) return blocked;
+    return c.json({ greeting: project.greeting ?? null });
   });
 
   app.get('/projects/:pk/changelog', (c) => {
     const project = findProjectByKey(db, c.req.param('pk'));
     if (!project) return c.json({ changelog: [] }); // don't leak existence
+    const blocked = rejectIfOriginBlocked(c, project, log);
+    if (blocked) return blocked;
 
     const rows = db
       .prepare(

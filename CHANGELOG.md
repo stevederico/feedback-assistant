@@ -1,3 +1,10 @@
+3.7.0
+
+  Enforce origin allowlist
+  Cleanup screenshots on delete
+  CSP load-test fixture
+  Live auth runbook
+
 3.6.0
 
   Show project on submissions

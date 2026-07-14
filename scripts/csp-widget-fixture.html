@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Feedback Assistant — strict CSP fixture</title>
+  <!--
+    P0 load-test: prove the embed works under a hard Content-Security-Policy.
+
+    How to run:
+      1. Start FA: npm run start  (dashboard :5173, API :8000, widget :5174)
+         Or point HOST below at production.
+      2. Serve THIS file over HTTP (not file://), e.g.:
+           npx --yes serve scripts -p 3456
+         open http://localhost:3456/csp-widget-fixture.html
+      3. Chrome DevTools → Console: zero CSP violations.
+      4. Open the bubble, send a test message; it should land in the dashboard.
+
+    Expect: constructable stylesheets + DOM build (no inline style tags, no innerHTML).
+  -->
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'none'; script-src http://localhost:5174 http://localhost:8000 https://feedback-assistant.dottie.ai; connect-src http://localhost:8000 https://feedback-assistant.dottie.ai; img-src data: blob:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+  />
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+    code { background: #f4f4f5; padding: 0.1em 0.35em; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <h1>Strict CSP widget fixture</h1>
+  <p>
+    If the feedback orb appears and you can submit without console CSP errors,
+    the widget is CSP-safe enough for this policy.
+  </p>
+  <p>Edit the script <code>src</code> / <code>data-api</code> / CSP hosts for your environment.</p>
+
+  <!-- Dev: widget Vite on 5174, API on 8000. Swap for prod versioned URL when testing production. -->
+  <script
+    src="http://localhost:5174/src/index.js"
+    data-project="pk_REPLACE_WITH_YOUR_KEY"
+    data-api="http://localhost:8000/v1"
+    defer
+  ></script>
+</body>
+</html>

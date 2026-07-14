@@ -276,8 +276,9 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
             onChange={(e) => setOrigins(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            Logged for hygiene; not enforced for security. Per-IP rate limit and
-            daily budget are the real guardrails.
+            Empty = any site. Non-empty = enforced on the widget API. Supports
+            exact origins and <code>*.example.com</code>. Per-IP rate limit and
+            daily budget still apply.
           </p>
         </div>
 

@@ -324,11 +324,21 @@ export function createFeedbackDashboardApi({
     const existing = getOrgProject(db, projectId, orgId);
     if (!existing) return c.json({ error: 'Not found' }, 404);
 
+    // Capture screenshot file ids before rows go away, then unlink after commit.
+    const shotRows = db.prepare(
+      'SELECT id FROM Screenshots WHERE project_id = ?',
+    ).all(projectId);
+    const screenshotIds: string[] = [];
+    for (const row of shotRows) {
+      try {
+        screenshotIds.push(str(row, 'id'));
+      } catch {
+        /* skip bad row */
+      }
+    }
+
     db.exec('BEGIN');
     try {
-      // Phase 2 step 6 (uploads) will need to unlink files for screenshots
-      // tied to this project — for now, just clear DB rows. We'll wire the
-      // file cleanup when the upload module lands.
       db.prepare('DELETE FROM Submissions WHERE project_id = ?').run(projectId);
       db.prepare('DELETE FROM Screenshots WHERE project_id = ?').run(projectId);
       db.prepare('DELETE FROM Changelog WHERE project_id = ?').run(projectId);
@@ -339,6 +349,10 @@ export function createFeedbackDashboardApi({
       try { db.exec('ROLLBACK'); } catch { /* ignore */ }
       logger?.error?.('project delete failed', { projectId, error: errorMessage(e) });
       return c.json({ error: 'Delete failed' }, 500);
+    }
+
+    for (const shotId of screenshotIds) {
+      await deleteScreenshotFile(shotId, logger);
     }
 
     return c.json({ ok: true });

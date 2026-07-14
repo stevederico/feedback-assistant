@@ -3,11 +3,11 @@
 //
 // Run via: node --test (see package.json)
 
-import { test, before } from 'node:test';
+import { test, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { resolve, join } from 'node:path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 
@@ -20,6 +20,8 @@ import type { Hono, MiddlewareHandler } from 'hono';
 import { bootstrapFeedbackSchema } from './feedback-schema.ts';
 import { createWidgetApi } from './widget-api.ts';
 import { createFeedbackDashboardApi } from './feedback-dashboard-api.ts';
+import { parseAllowedOrigins, isOriginAllowed } from './feedback-origin.ts';
+import { ensureUploadsDir, getUploadsDir } from './feedback-uploads.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PK = 'pk_testkey0000000000000000000000aa';
@@ -241,4 +243,161 @@ test('GET /submissions/:id includes projectName', async () => {
 test('widget source builds DOM without innerHTML (Trusted-Types safe)', () => {
   const src = readFileSync(resolve(__dirname, '..', 'widget', 'src', 'index.js'), 'utf8');
   assert.ok(!/\.innerHTML\s*=/.test(src), 'widget/src/index.js must not assign .innerHTML');
+});
+
+describe('feedback-origin helpers', () => {
+  test('empty CSV means allow all', () => {
+    assert.equal(parseAllowedOrigins(''), null);
+    assert.equal(parseAllowedOrigins('  ,  '), null);
+    assert.equal(parseAllowedOrigins(null), null);
+    assert.equal(isOriginAllowed('https://evil.com', null), true);
+    assert.equal(isOriginAllowed(undefined, null), true);
+  });
+
+  test('exact origin match', () => {
+    const allowed = parseAllowedOrigins('https://app.example.com, https://staging.example.com');
+    assert.ok(allowed);
+    assert.equal(isOriginAllowed('https://app.example.com', allowed), true);
+    assert.equal(isOriginAllowed('https://evil.com', allowed), false);
+    assert.equal(isOriginAllowed(undefined, allowed), false);
+  });
+
+  test('wildcard host pattern', () => {
+    const allowed = parseAllowedOrigins('*.example.com');
+    assert.ok(allowed);
+    assert.equal(isOriginAllowed('https://foo.example.com', allowed), true);
+    assert.equal(isOriginAllowed('https://example.com', allowed), true);
+    assert.equal(isOriginAllowed('https://evil.com', allowed), false);
+    assert.equal(isOriginAllowed('https://evil-example.com', allowed), false);
+  });
+});
+
+describe('origin allowlist on /v1', () => {
+  const RESTRICT_PK = 'pk_restrict00000000000000000000rr';
+
+  before(() => {
+    const now = Date.now();
+    testDb.prepare(
+      `INSERT OR IGNORE INTO Projects
+       (id, org_id, name, public_key, allowed_origins, daily_budget, greeting, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      'proj-restrict',
+      'org1',
+      'Restricted',
+      RESTRICT_PK,
+      'https://app.example.com, *.good.com',
+      1000,
+      null,
+      now,
+    );
+  });
+
+  test('empty allowlist still accepts foreign Origin', async () => {
+    const res = await app.request('/submissions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Project-Key': PK,
+        Origin: 'https://evil.com',
+      },
+      body: JSON.stringify({ message: 'from anywhere' }),
+    });
+    assert.equal(res.status, 200);
+  });
+
+  test('matching Origin is allowed', async () => {
+    const res = await app.request('/submissions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Project-Key': RESTRICT_PK,
+        Origin: 'https://app.example.com',
+      },
+      body: JSON.stringify({ message: 'allowed host' }),
+    });
+    assert.equal(res.status, 200);
+  });
+
+  test('wildcard matching Origin is allowed', async () => {
+    const res = await app.request('/submissions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Project-Key': RESTRICT_PK,
+        Origin: 'https://shop.good.com',
+      },
+      body: JSON.stringify({ message: 'wildcard ok' }),
+    });
+    assert.equal(res.status, 200);
+  });
+
+  test('foreign Origin is 403', async () => {
+    const res = await app.request('/submissions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Project-Key': RESTRICT_PK,
+        Origin: 'https://evil.com',
+      },
+      body: JSON.stringify({ message: 'nope' }),
+    });
+    assert.equal(res.status, 403);
+    const body = asBody(await res.json());
+    assert.equal(body.error, 'origin not allowed');
+  });
+
+  test('missing Origin with non-empty allowlist is 403', async () => {
+    const res = await app.request('/submissions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Project-Key': RESTRICT_PK,
+      },
+      body: JSON.stringify({ message: 'no origin' }),
+    });
+    assert.equal(res.status, 403);
+  });
+
+  test('changelog GET enforces allowlist', async () => {
+    const bad = await app.request(`/projects/${RESTRICT_PK}/changelog`, {
+      headers: { Origin: 'https://evil.com' },
+    });
+    assert.equal(bad.status, 403);
+    const good = await app.request(`/projects/${RESTRICT_PK}/changelog`, {
+      headers: { Origin: 'https://app.example.com' },
+    });
+    assert.equal(good.status, 200);
+  });
+});
+
+test('DELETE /projects/:id unlinks screenshot files on disk', async () => {
+  const now = Date.now();
+  const shotId = 'shot-cleanup-file-001';
+  const projId = 'proj-cleanup-files';
+  const pk = 'pk_cleanup0000000000000000000000zz';
+
+  await ensureUploadsDir();
+  const dir = getUploadsDir();
+  mkdirSync(dir, { recursive: true });
+  const filePath = join(dir, shotId);
+  writeFileSync(filePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+  testDb.prepare(
+    `INSERT INTO Projects (id, org_id, name, public_key, daily_budget, greeting, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(projId, 'org1', 'Cleanup', pk, 1000, null, now);
+  testDb.prepare(
+    `INSERT INTO Screenshots (id, project_id, content_type, size_bytes, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(shotId, projId, 'image/png', 4, now);
+
+  assert.equal(existsSync(filePath), true);
+
+  const dash = dashboardForUser('user-cleanup', 'org1');
+  const res = await dash.request(`/projects/${projId}`, { method: 'DELETE' });
+  assert.equal(res.status, 200);
+  assert.equal(existsSync(filePath), false);
+  const gone = testDb.prepare('SELECT id FROM Projects WHERE id = ?').get(projId);
+  assert.equal(gone, undefined);
 });

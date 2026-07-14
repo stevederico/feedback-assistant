@@ -1,16 +1,16 @@
 # Feedback Assistant — To Do
 
-Shipped through **3.6.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
+Shipped through **3.7.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
 Order = priority (top first within each section).
 
 ---
 
 ## P0 — Correctness & security (do next)
 
-- [ ] Enforce per-project origin allowlist on `/v1` (today hygiene-only; support `*.domain`)
-- [ ] File cleanup on project delete (DB rows cascade; screenshot files not yet unlinked)
-- [ ] Load-test widget on a real strict-CSP customer page (local CSP-safe; headless blocked by Cloudflare bot challenge)
-- [ ] Live auth test: JWT byte-compat, legacy-bcrypt login, scrypt-rehash against a real prior token (4.0.0 + TS verified in build/tests only)
+- [x] Enforce per-project origin allowlist on `/v1` (empty = any; non-empty enforces; `*.domain` supported)
+- [x] File cleanup on project delete (unlink screenshot files after DB cascade)
+- [ ] Load-test widget on a real strict-CSP page — fixture: `scripts/csp-widget-fixture.html` (serve over HTTP; fill `pk_`; confirm Console clean + submit works)
+- [x] Live auth test against a real server — runbook: `scripts/live-auth-check.md` (scrypt signup + `/api/me` 200; bcrypt fixture rehashed to `scrypt$`)
 
 ## P1 — Pre-launch (business)
 

@@ -106,7 +106,8 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
                 placeholder="https://app.example.com, https://staging.example.com"
               />
               <p className="text-xs text-muted-foreground">
-                Comma-separated. Logged for hygiene; not enforced for security.
+                Comma-separated. Empty = any site. Non-empty = enforced on the
+                widget API. Supports <code>*.example.com</code>.
               </p>
             </div>
             <div className="flex flex-col gap-1.5 max-w-xs">
