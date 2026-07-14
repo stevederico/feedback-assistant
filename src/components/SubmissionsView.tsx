@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router';
-import { toast } from 'sonner';
 import { Search, Archive, Mail, MailOpen, Trash2, ExternalLink, Image as ImageIcon, Inbox } from '@stevederico/skateboard-ui/icons';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
@@ -135,24 +134,30 @@ export default function SubmissionsView() {
     if (id !== ALL_PROJECTS) setCurrentId(id);
   }
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   async function updateStatus(id: string, newStatus: SubmissionStatus) {
+    setActionError(null);
     try {
       await faApi.updateSubmission(id, { status: newStatus });
-      toast.success(`Marked ${newStatus}`);
       fetchList();
       if (activeDetail && !activeDetail.error && activeDetail.id === id) {
         setActiveDetail({ ...activeDetail, status: newStatus });
       }
-    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Update failed'); }
+    } catch (e) {
+      setActionError((e instanceof Error ? e.message : String(e)) || 'Update failed');
+    }
   }
 
   async function handleDelete(id: string) {
+    setActionError(null);
     try {
       await faApi.deleteSubmission(id);
-      toast.success('Submission deleted');
       setActiveId(null);
       fetchList();
-    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Delete failed'); }
+    } catch (e) {
+      setActionError((e instanceof Error ? e.message : String(e)) || 'Delete failed');
+    }
   }
 
   return (
@@ -165,6 +170,10 @@ export default function SubmissionsView() {
           allowAll
         />
       </Header>
+
+      {actionError && (
+        <p className="text-sm text-destructive" role="alert">{actionError}</p>
+      )}
 
       {!loading && (!projects || projects.length === 0) && (
         <Card className="p-6">

@@ -819,6 +819,7 @@ For **Feedback Assistant** app upgrades and Skateboard-ui bumps. Boilerplate-onl
 
 | Version | Impact |
 |---------|--------|
+| 3.14 | Drop changelog drag-reorder UI; drop sonner + dnd-kit deps |
 | 3.10 | UI renames "projects" → "apps"; API paths stay `/projects` |
 | 3.8 | Default embed `/widget.js` auto-updates |
 | 3.7 | Origin allowlist enforced; screenshots cleaned on delete |

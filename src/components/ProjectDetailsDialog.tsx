@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { Copy, KeyRound, Save } from '@stevederico/skateboard-ui/icons';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
@@ -33,6 +32,7 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
   const [greeting, setGreeting] = useState('');
   const [saving, setSaving] = useState(false);
   const [rotatedKey, setRotatedKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!project) return;
@@ -41,11 +41,13 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
     setBudget(project.dailyBudget ?? 1000);
     setGreeting(project.greeting || '');
     setRotatedKey(null);
+    setError(null);
   }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSave() {
     if (!project) return;
     setSaving(true);
+    setError(null);
     try {
       await faApi.updateProject(project.id, {
         name: name.trim(),
@@ -53,10 +55,9 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
         dailyBudget: Number(budget) || 1000,
         greeting: greeting.trim() || null,
       });
-      toast.success('Settings saved');
       onChanged?.();
     } catch (e) {
-      toast.error((e instanceof Error ? e.message : String(e)) || 'Save failed');
+      setError((e instanceof Error ? e.message : String(e)) || 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -64,13 +65,13 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
 
   async function handleRotate() {
     if (!project) return;
+    setError(null);
     try {
       const res = await faApi.rotateProjectKey(project.id);
       setRotatedKey(res.publicKey);
       onChanged?.();
-      toast.success('Key rotated — old key is now invalid');
     } catch (e) {
-      toast.error((e instanceof Error ? e.message : String(e)) || 'Rotate failed');
+      setError((e instanceof Error ? e.message : String(e)) || 'Rotate failed');
     }
   }
 
@@ -85,6 +86,9 @@ export default function ProjectDetailsDialog({ project, open, onOpenChange, onCh
         </DialogHeader>
 
         <div className="flex flex-col gap-5">
+          {error && (
+            <p className="text-sm text-destructive" role="alert">{error}</p>
+          )}
           <div className="flex flex-col gap-3">
             <div className="text-sm font-medium">App</div>
             <div className="flex flex-col gap-1.5">

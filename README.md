@@ -61,7 +61,6 @@ Sign up in the dashboard, create an app, and copy the generated embed snippet in
 
 ### 📣 **Built-in Changelog**
 - **Publish a What's New feed** with Markdown bodies
-- **Drag-to-reorder** entries (dnd-kit)
 - **Draft vs. published** — only published entries reach the widget
 
 ### 🔐 **Auth & Security**

@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { toast } from 'sonner';
 import { Plus, Copy, KeyRound, Trash2 } from '@stevederico/skateboard-ui/icons';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
@@ -47,28 +46,30 @@ export default function ProjectsView() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newKey, setNewKey] = useState<NewKeyState | null>(null); // returned on create/rotate
   const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   function load() {
     faApi.listProjects().then((r) => setProjects(r.projects || [])).catch(() => setProjects([]));
   }
   useEffect(load, []);
 
   async function handleDelete(p: Project) {
+    setError(null);
     try {
       await faApi.deleteProject(p.id);
-      toast.success(`Deleted "${p.name}"`);
       load();
     } catch (e) {
-      toast.error((e instanceof Error ? e.message : String(e)) || 'Delete failed');
+      setError((e instanceof Error ? e.message : String(e)) || 'Delete failed');
     }
   }
 
   async function handleRotate(p: Project) {
+    setError(null);
     try {
       const res = await faApi.rotateProjectKey(p.id);
       setNewKey({ id: p.id, name: p.name, publicKey: res.publicKey, rotated: true });
       load();
     } catch (e) {
-      toast.error((e instanceof Error ? e.message : String(e)) || 'Rotate failed');
+      setError((e instanceof Error ? e.message : String(e)) || 'Rotate failed');
     }
   }
 
@@ -88,6 +89,10 @@ export default function ProjectsView() {
           />
         </Dialog>
       </Header>
+
+      {error && (
+        <p className="text-sm text-destructive" role="alert">{error}</p>
+      )}
 
       {projects === null && (
         <div className="text-sm text-muted-foreground">Loading apps…</div>
@@ -215,13 +220,15 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
   const [origins, setOrigins] = useState('');
   const [greeting, setGreeting] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!name.trim()) {
-      toast.error('Name is required');
+      setFormError('Name is required');
       return;
     }
+    setFormError(null);
     setSubmitting(true);
     try {
       const p = await faApi.createProject({
@@ -232,7 +239,7 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
       onCreated(p);
       setName(''); setOrigins(''); setGreeting('');
     } catch (err) {
-      toast.error((err instanceof Error ? err.message : String(err)) || 'Create failed');
+      setFormError((err instanceof Error ? err.message : String(err)) || 'Create failed');
     } finally {
       setSubmitting(false);
     }
@@ -247,6 +254,9 @@ function CreateProjectDialog({ onCreated }: CreateProjectDialogProps) {
             Each app gets its own widget key, daily budget, and changelog.
           </DialogDescription>
         </DialogHeader>
+        {formError && (
+          <p className="text-sm text-destructive" role="alert">{formError}</p>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="proj-name">Name</Label>

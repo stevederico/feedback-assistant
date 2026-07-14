@@ -1,3 +1,7 @@
+3.14.0
+
+  Drop dnd-kit and sonner
+
 3.13.0
 
   Consolidate docs to GUIDE

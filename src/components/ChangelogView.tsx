@@ -1,14 +1,5 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react';
-import { toast } from 'sonner';
-import { Plus, GripVertical, Eye, EyeOff, Trash2, Pencil } from '@stevederico/skateboard-ui/icons';
-import {
-  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
-} from '@dnd-kit/core';
-import {
-  arrayMove, SortableContext, sortableKeyboardCoordinates,
-  useSortable, verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { Plus, Eye, EyeOff, Trash2, Pencil } from '@stevederico/skateboard-ui/icons';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
 import { Label } from '@stevederico/skateboard-ui/shadcn/ui/label';
@@ -22,7 +13,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@stevederico/skateboard-ui/shadcn/ui/alert-dialog';
-import type { DragEndEvent } from '@dnd-kit/core';
 import Header from '@stevederico/skateboard-ui/Header';
 import { faApi } from '../util/api';
 import { useCurrentProject } from '../util/useCurrentProject';
@@ -36,33 +26,24 @@ interface EntryFormValues {
   publish: boolean;
 }
 
-/** Props for a single sortable changelog row. */
-interface SortableRowProps {
+/** Props for a single changelog row. */
+interface EntryRowProps {
   entry: ChangelogEntry;
   onEdit: (entry: ChangelogEntry) => void;
   onTogglePublish: (entry: ChangelogEntry) => void;
   onDelete: (entry: ChangelogEntry) => void;
 }
 
-function SortableRow({ entry, onEdit, onTogglePublish, onDelete }: SortableRowProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
+/**
+ * One changelog entry row with publish, edit, and delete actions.
+ *
+ * @param props - Entry data and action handlers
+ * @returns List item for the changelog list
+ */
+function EntryRow({ entry, onEdit, onTogglePublish, onDelete }: EntryRowProps) {
   const published = !!entry.publishedAt;
   return (
-    <li ref={setNodeRef} style={style} className="flex items-start gap-2 p-3 border-b last:border-b-0 bg-card">
-      <button
-        type="button"
-        className="mt-1 cursor-grab text-muted-foreground touch-none"
-        {...attributes}
-        {...listeners}
-        aria-label="Drag to reorder"
-      >
-        <GripVertical size={16} />
-      </button>
+    <li className="flex items-start gap-2 p-3 border-b last:border-b-0 bg-card">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <div className="text-sm font-medium truncate">{entry.title}</div>
@@ -117,14 +98,25 @@ interface EntryFormProps {
   submitting: boolean;
 }
 
+/**
+ * Create/edit form for a changelog entry (title, body, publish flag).
+ *
+ * @param props - Initial values, submit/cancel handlers, submitting state
+ * @returns Form element
+ */
 function EntryForm({ initial, onSubmit, onCancel, submitting }: EntryFormProps) {
   const [title, setTitle] = useState(initial?.title || '');
   const [body, setBody] = useState(initial?.body || '');
   const [publish, setPublish] = useState(initial ? !!initial.publishedAt : true);
+  const [titleError, setTitleError] = useState<string | null>(null);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!title.trim()) { toast.error('Title is required'); return; }
+    if (!title.trim()) {
+      setTitleError('Title is required');
+      return;
+    }
+    setTitleError(null);
     onSubmit({ title: title.trim(), body: body, publish });
   }
 
@@ -132,7 +124,23 @@ function EntryForm({ initial, onSubmit, onCancel, submitting }: EntryFormProps) 
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="cl-title">Title</Label>
-        <Input id="cl-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} autoFocus />
+        <Input
+          id="cl-title"
+          value={title}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            if (titleError) setTitleError(null);
+          }}
+          maxLength={200}
+          autoFocus
+          aria-invalid={!!titleError}
+          aria-describedby={titleError ? 'cl-title-error' : undefined}
+        />
+        {titleError && (
+          <p id="cl-title-error" className="text-sm text-destructive" role="alert">
+            {titleError}
+          </p>
+        )}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="cl-body">Body (markdown)</Label>
@@ -156,17 +164,18 @@ function EntryForm({ initial, onSubmit, onCancel, submitting }: EntryFormProps) 
   );
 }
 
+/**
+ * Per-app changelog admin: list, create, edit, publish/unpublish, delete.
+ *
+ * @returns Changelog management view
+ */
 export default function ChangelogView() {
   const { projects, current, currentId, setCurrentId, loading } = useCurrentProject();
   const [entries, setEntries] = useState<ChangelogEntry[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<ChangelogEntry | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!currentId) { setEntries([]); return; }
@@ -175,62 +184,55 @@ export default function ChangelogView() {
   }, [currentId]);
 
   useEffect(load, [load]);
+  useEffect(() => { setActionError(null); }, [currentId]);
 
   async function handleCreate(values: EntryFormValues) {
     if (!current) return;
     setSubmitting(true);
+    setActionError(null);
     try {
       await faApi.createChangelog(current.id, values);
-      toast.success('Entry created');
       setCreating(false);
       load();
-    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Create failed'); }
-    finally { setSubmitting(false); }
+    } catch (e) {
+      setActionError((e instanceof Error ? e.message : String(e)) || 'Create failed');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleUpdate(values: EntryFormValues) {
     if (!editing) return;
     setSubmitting(true);
+    setActionError(null);
     try {
       await faApi.updateChangelog(editing.id, values);
-      toast.success('Entry updated');
       setEditing(null);
       load();
-    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Update failed'); }
-    finally { setSubmitting(false); }
+    } catch (e) {
+      setActionError((e instanceof Error ? e.message : String(e)) || 'Update failed');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleTogglePublish(entry: ChangelogEntry) {
+    setActionError(null);
     try {
       await faApi.updateChangelog(entry.id, { publish: !entry.publishedAt });
       load();
-    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Toggle failed'); }
+    } catch (e) {
+      setActionError((e instanceof Error ? e.message : String(e)) || 'Toggle failed');
+    }
   }
 
   async function handleDelete(entry: ChangelogEntry) {
+    setActionError(null);
     try {
       await faApi.deleteChangelog(entry.id);
-      toast.success('Entry deleted');
       load();
-    } catch (e) { toast.error((e instanceof Error ? e.message : String(e)) || 'Delete failed'); }
-  }
-
-  async function handleDragEnd(event: DragEndEvent) {
-    if (!current || !entries) return;
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIdx = entries.findIndex((e) => e.id === active.id);
-    const newIdx = entries.findIndex((e) => e.id === over.id);
-    if (oldIdx < 0 || newIdx < 0) return;
-    const reordered = arrayMove(entries, oldIdx, newIdx);
-    // Renumber sort_order as 1..N to match the new visual order.
-    const items = reordered.map((e, i) => ({ id: e.id, sortOrder: i + 1 }));
-    setEntries(reordered.map((e, i) => ({ ...e, sortOrder: i + 1 })));
-    try {
-      await faApi.reorderChangelog(current.id, items);
     } catch (e) {
-      toast.error('Reorder failed');
-      load(); // revert
+      setActionError((e instanceof Error ? e.message : String(e)) || 'Delete failed');
     }
   }
 
@@ -266,6 +268,10 @@ export default function ChangelogView() {
         </Dialog>
       </Header>
 
+      {actionError && (
+        <p className="text-sm text-destructive" role="alert">{actionError}</p>
+      )}
+
       {!loading && (!projects || projects.length === 0) && (
         <Card className="p-6">
           <div className="text-sm">Create an app to manage its changelog.</div>
@@ -281,21 +287,17 @@ export default function ChangelogView() {
 
       {current && entries && entries.length > 0 && (
         <Card className="overflow-hidden">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-              <ul>
-                {entries.map((e) => (
-                  <SortableRow
-                    key={e.id}
-                    entry={e}
-                    onEdit={setEditing}
-                    onTogglePublish={handleTogglePublish}
-                    onDelete={handleDelete}
-                  />
-                ))}
-              </ul>
-            </SortableContext>
-          </DndContext>
+          <ul>
+            {entries.map((e) => (
+              <EntryRow
+                key={e.id}
+                entry={e}
+                onEdit={setEditing}
+                onTogglePublish={handleTogglePublish}
+                onDelete={handleDelete}
+              />
+            ))}
+          </ul>
         </Card>
       )}
 

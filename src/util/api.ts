@@ -23,12 +23,6 @@ interface SubmissionListParams {
   limit?: number;
 }
 
-/** A single reorder instruction: an entry id and its new 1-based position. */
-interface ReorderItem {
-  id: string;
-  sortOrder: number;
-}
-
 /** Mutable fields accepted when creating/updating a changelog entry. */
 interface ChangelogInput {
   title?: string;
@@ -92,11 +86,6 @@ export const faApi = {
     call<ChangelogEntry>(`/changelog/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteChangelog: (id: string) =>
     call<{ ok: boolean }>(`/changelog/${id}`, { method: 'DELETE' }),
-  reorderChangelog: (appId: string, items: ReorderItem[]) =>
-    call<{ ok: boolean }>(`/apps/${appId}/changelog/reorder`, {
-      method: 'POST',
-      body: JSON.stringify({ items }),
-    }),
 
   // Widget bundle SRI hash for optional pinned embeds ({ version, integrity }).
   getWidgetIntegrity: () => call<WidgetIntegrity>('/widget-integrity'),
