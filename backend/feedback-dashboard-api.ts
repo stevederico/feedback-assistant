@@ -113,6 +113,56 @@ function getOrgProject(db: DatabaseSync, projectId: string, orgId: string): Row 
     .get(projectId, orgId) ?? null;
 }
 
+/**
+ * Map a joined Submissions+Projects list row to the dashboard JSON shape.
+ * Expects columns from Submissions plus `project_name` from Projects.
+ */
+function mapSubmissionListRow(r: Row) {
+  return {
+    id: str(r, 'id'),
+    projectId: str(r, 'project_id'),
+    projectName: str(r, 'project_name'),
+    message: str(r, 'message'),
+    url: strOrNull(r, 'url'),
+    endUserName: strOrNull(r, 'end_user_name'),
+    endUserEmail: strOrNull(r, 'end_user_email'),
+    screenshotId: strOrNull(r, 'screenshot_id'),
+    status: str(r, 'status'),
+    createdAt: num(r, 'created_at'),
+  };
+}
+
+/**
+ * Build shared list filters (status, q, from, to) for submissions queries.
+ * Caller supplies the base WHERE clauses and params (project or org scope).
+ */
+function appendSubmissionListFilters(
+  url: URL,
+  where: string[],
+  params: Array<string | number>,
+): { limit: number; offset: number } {
+  const status = url.searchParams.get('status');
+  const q = url.searchParams.get('q');
+  const from = url.searchParams.get('from'); // ms
+  const to = url.searchParams.get('to');     // ms
+  const limit = Math.max(1, Math.min(200, parseInt(url.searchParams.get('limit') || '50', 10)));
+  const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10));
+
+  if (status && ALLOWED_STATUSES.has(status)) {
+    where.push('s.status = ?');
+    params.push(status);
+  }
+  if (q && q.trim()) {
+    where.push('(s.message LIKE ? OR s.end_user_name LIKE ? OR s.end_user_email LIKE ? OR s.url LIKE ?)');
+    const like = `%${q.trim()}%`;
+    params.push(like, like, like, like);
+  }
+  if (from && /^\d+$/.test(from)) { where.push('s.created_at >= ?'); params.push(parseInt(from, 10)); }
+  if (to && /^\d+$/.test(to))     { where.push('s.created_at <= ?'); params.push(parseInt(to, 10)); }
+
+  return { limit, offset };
+}
+
 /** Options for {@link createFeedbackDashboardApi}. */
 export interface FeedbackDashboardApiOptions {
   db: DatabaseSync;
@@ -313,6 +363,51 @@ export function createFeedbackDashboardApi({
 
   // --- Submissions ---
 
+  /**
+   * Org-wide inbox (all projects). Register before /submissions/:id so
+   * "submissions" is not captured as an id.
+   */
+  app.get('/submissions', authMiddleware, (c) => {
+    const userID = c.get('userID');
+    const orgId = getUserOrgId(db, userID);
+    if (!orgId) return c.json({ submissions: [], total: 0, limit: 50, offset: 0 });
+
+    const url = new URL(c.req.url);
+    const where = ['p.org_id = ?'];
+    const params: Array<string | number> = [orgId];
+    const projectFilter = url.searchParams.get('projectId');
+    if (projectFilter) {
+      where.push('s.project_id = ?');
+      params.push(projectFilter);
+    }
+    const { limit, offset } = appendSubmissionListFilters(url, where, params);
+
+    const rows = db.prepare(
+      `SELECT s.id, s.project_id, p.name AS project_name, s.message, s.url,
+              s.end_user_name, s.end_user_email, s.screenshot_id, s.status, s.created_at
+       FROM Submissions s
+       JOIN Projects p ON p.id = s.project_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY s.created_at DESC
+       LIMIT ? OFFSET ?`
+    ).all(...params, limit, offset);
+
+    const totalRow = db.prepare(
+      `SELECT COUNT(*) AS n
+       FROM Submissions s
+       JOIN Projects p ON p.id = s.project_id
+       WHERE ${where.join(' AND ')}`
+    ).get(...params);
+    const total = totalRow ? num(totalRow, 'n') : 0;
+
+    return c.json({
+      submissions: rows.map(mapSubmissionListRow),
+      total,
+      limit,
+      offset,
+    });
+  });
+
   app.get('/projects/:id/submissions', authMiddleware, (c) => {
     const userID = c.get('userID');
     const orgId = getUserOrgId(db, userID);
@@ -323,50 +418,27 @@ export function createFeedbackDashboardApi({
     if (!project) return c.json({ error: 'Not found' }, 404);
 
     const url = new URL(c.req.url);
-    const status = url.searchParams.get('status');
-    const q = url.searchParams.get('q');
-    const from = url.searchParams.get('from'); // ms
-    const to = url.searchParams.get('to');     // ms
-    const limit = Math.max(1, Math.min(200, parseInt(url.searchParams.get('limit') || '50', 10)));
-    const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10));
-
-    const where = ['project_id = ?'];
+    const where = ['s.project_id = ?'];
     const params: Array<string | number> = [projectId];
-    if (status && ALLOWED_STATUSES.has(status)) {
-      where.push('status = ?'); params.push(status);
-    }
-    if (q && q.trim()) {
-      where.push('(message LIKE ? OR end_user_name LIKE ? OR end_user_email LIKE ? OR url LIKE ?)');
-      const like = `%${q.trim()}%`;
-      params.push(like, like, like, like);
-    }
-    if (from && /^\d+$/.test(from)) { where.push('created_at >= ?'); params.push(parseInt(from, 10)); }
-    if (to && /^\d+$/.test(to))     { where.push('created_at <= ?'); params.push(parseInt(to, 10)); }
+    const { limit, offset } = appendSubmissionListFilters(url, where, params);
 
     const rows = db.prepare(
-      `SELECT id, message, url, end_user_name, end_user_email, screenshot_id, status, created_at
-       FROM Submissions
+      `SELECT s.id, s.project_id, p.name AS project_name, s.message, s.url,
+              s.end_user_name, s.end_user_email, s.screenshot_id, s.status, s.created_at
+       FROM Submissions s
+       JOIN Projects p ON p.id = s.project_id
        WHERE ${where.join(' AND ')}
-       ORDER BY created_at DESC
+       ORDER BY s.created_at DESC
        LIMIT ? OFFSET ?`
     ).all(...params, limit, offset);
 
     const totalRow = db.prepare(
-      `SELECT COUNT(*) AS n FROM Submissions WHERE ${where.join(' AND ')}`
+      `SELECT COUNT(*) AS n FROM Submissions s WHERE ${where.join(' AND ')}`
     ).get(...params);
     const total = totalRow ? num(totalRow, 'n') : 0;
 
     return c.json({
-      submissions: rows.map((r) => ({
-        id: str(r, 'id'),
-        message: str(r, 'message'),
-        url: strOrNull(r, 'url'),
-        endUserName: strOrNull(r, 'end_user_name'),
-        endUserEmail: strOrNull(r, 'end_user_email'),
-        screenshotId: strOrNull(r, 'screenshot_id'),
-        status: str(r, 'status'),
-        createdAt: num(r, 'created_at'),
-      })),
+      submissions: rows.map(mapSubmissionListRow),
       total,
       limit,
       offset,
@@ -380,7 +452,7 @@ export function createFeedbackDashboardApi({
 
     const id = c.req.param('id');
     const row = db.prepare(
-      `SELECT s.*, p.org_id AS p_org_id
+      `SELECT s.*, p.org_id AS p_org_id, p.name AS project_name
        FROM Submissions s
        JOIN Projects p ON p.id = s.project_id
        WHERE s.id = ? AND p.org_id = ?`
@@ -390,6 +462,7 @@ export function createFeedbackDashboardApi({
     return c.json({
       id: str(row, 'id'),
       projectId: str(row, 'project_id'),
+      projectName: str(row, 'project_name'),
       message: str(row, 'message'),
       url: strOrNull(row, 'url'),
       userAgent: strOrNull(row, 'user_agent'),

@@ -59,15 +59,20 @@ export const faApi = {
     call<{ publicKey: string }>(`/projects/${id}/rotate-key`, { method: 'POST' }),
 
   // Submissions
+  /**
+   * List submissions for one project, or the whole org when `projectId` is
+   * `'all'` (inbox view — each row includes `projectName`).
+   */
   listSubmissions: (projectId: string, params: SubmissionListParams = {}) => {
     const qs = new URLSearchParams(
       Object.entries(params)
         .filter(([, v]) => v !== undefined && v !== null && v !== '')
         .map(([k, v]) => [k, String(v)]),
     ).toString();
-    return call<{ submissions: Submission[] }>(
-      `/projects/${projectId}/submissions${qs ? `?${qs}` : ''}`,
-    );
+    const path = projectId === 'all'
+      ? `/submissions${qs ? `?${qs}` : ''}`
+      : `/projects/${projectId}/submissions${qs ? `?${qs}` : ''}`;
+    return call<{ submissions: Submission[] }>(path);
   },
   getSubmission: (id: string) => call<SubmissionDetail>(`/submissions/${id}`),
   updateSubmission: (id: string, body: Partial<Submission>) =>

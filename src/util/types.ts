@@ -30,6 +30,10 @@ export interface Submission {
   id: string;
   message: string;
   status: SubmissionStatus;
+  /** Owning project id (always present from list/detail APIs). */
+  projectId?: string;
+  /** Owning project display name. */
+  projectName?: string;
   endUserName?: string | null;
   endUserEmail?: string | null;
   /** URL the widget was on when the feedback was sent. */

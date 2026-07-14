@@ -1,3 +1,8 @@
+3.6.0
+
+  Show project on submissions
+  All-projects inbox filter
+
 3.5.0
 
   Ignore runtime databases dir
