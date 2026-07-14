@@ -40,6 +40,8 @@ Shipped 3.2.1 → 3.6.0. Checkboxes: `[x]` done, `[ ]` remaining.
 - [ ] Stripe: real product + `lookup_key` (constants.json still has `my_lookup_key`)
 
 ## Backlog (post-MVP)
+- [ ] Enforce per-project origin allowlist on `/v1` (today hygiene-only; support `*.domain` like BXSupport)
+- [ ] LLM support: optional Grok draft/reply assist on submissions (`XAI_API_KEY`, not auto-triage marketing vapor)
 - [ ] Roadmap tab in widget with drag-to-rank (SortableJS, touch-friendly)
 - [ ] GitHub issue creation from submission detail
 - [ ] Email digest of new submissions for org admins
