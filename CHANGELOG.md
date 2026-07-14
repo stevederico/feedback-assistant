@@ -1,3 +1,7 @@
+3.15.0
+
+  Drop unused frontend test stack
+
 3.14.0
 
   Drop dnd-kit and sonner
