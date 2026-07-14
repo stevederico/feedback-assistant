@@ -1,6 +1,6 @@
 # Feedback Assistant — To Do
 
-Shipped through **3.12.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
+Shipped through **3.17.0**. Checkboxes: `[x]` done, `[ ]` remaining.  
 Order = priority (top first within each section).
 
 ---
@@ -14,15 +14,17 @@ Order = priority (top first within each section).
 
 ## P1 — Pre-launch (business)
 
-- [ ] Pick the wedge (vs Userback / Marker.io / Sentry)
-- [ ] Change domain to feedback.dottie.ai (from feedback-assistant.dottie.ai)
-- [ ] Stripe: real product + `lookup_key` (constants.json still has `my_lookup_key`)
-- [ ] Marketing site rewrite
-- [ ] Real legal review (terms/privacy still mobile/iTunes-flavored)
+**Wedge:** Feedback + What's New in one script tag — not Userback/Marker full suites, not Sentry. Self-serve embed; your inbox/data; changelog closes the loop in-widget.
+
+- [x] Pick the wedge (vs Userback / Marker.io / Sentry)
+- [x] Stripe: product copy + `lookup_key` `feedback_unlimited_monthly` in constants (create matching Stripe product + webhook + `STRIPE_KEY` / `STRIPE_ENDPOINT_SECRET` in prod still required)
+- [x] Marketing site rewrite (`src/constants.json` landing/pricing)
+- [x] Legal draft: SaaS terms/privacy/EULA/subs (no iTunes) — **counsel review still required before treating as final**
 
 ## P2 — Product gap (support / reply loop)
 
 - [ ] Widget support contact: app/owner name + email from public config
+- [ ] Change domain to feedback.dottie.ai (from feedback-assistant.dottie.ai)
 - [ ] LLM + agent reply (Grok via `XAI_API_KEY`): draft assist, human agent reply pushed to widget thread, visitor id + message history (not auto-triage vapor)
 
 ## P3 — Notify & integrate
