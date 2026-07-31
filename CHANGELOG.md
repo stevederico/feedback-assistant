@@ -1,3 +1,7 @@
+3.21.1
+
+  Default public analytics script URL
+
 3.21.0
 
   Add dottie-analytics via build env (OSS-safe)

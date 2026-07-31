@@ -85,8 +85,8 @@ Identity defaults in `constants.json` are generic (`example.com`). **Override at
 | `COMPANY_EMAIL` | Support address; legal `_EMAIL_` |
 | `FRONTEND_URL` | Backend redirects; also used as website fallback if `COMPANY_WEBSITE` is unset |
 | `CORS_ORIGINS` | Backend browser origin allowlist (runtime) |
-| `VITE_ANALYTICS_SRC` | Optional tracker script URL (e.g. `https://api.dottie.ai/script.js`) |
-| `VITE_ANALYTICS_ID` | Optional site write_key (never commit this — build-time only) |
+| `VITE_ANALYTICS_ID` | Optional dottie write_key (never commit — build-time only; omit = no tracking) |
+| `VITE_ANALYTICS_SRC` | Optional tracker URL (defaults to `https://api.dottie.ai/script.js`) |
 | `VITE_ANALYTICS_DOMAINS` | Optional domain allowlist for the tracker |
 
 Example production values:
@@ -96,8 +96,7 @@ COMPANY_WEBSITE=your.domain.com
 COMPANY_EMAIL=support@your.domain.com
 FRONTEND_URL=https://your.domain.com
 CORS_ORIGINS=https://your.domain.com
-# Optional analytics (omit for no tracking; OSS clones stay clean without these)
-# VITE_ANALYTICS_SRC=https://api.dottie.ai/script.js
+# Optional analytics (omit VITE_ANALYTICS_ID for no tracking)
 # VITE_ANALYTICS_ID=your_write_key
 # VITE_ANALYTICS_DOMAINS=your.domain.com
 ```
