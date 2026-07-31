@@ -74,10 +74,10 @@ export default function ProjectsView() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
+    <div className="flex flex-col gap-4 p-4 md:p-6" data-section-id="apps">
       <Header title="Apps">
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button size="sm" />}>
+          <DialogTrigger render={<Button size="sm" data-umami-event="app-create-opened" />}>
             <Plus size={16} /> New app
           </DialogTrigger>
           <CreateProjectDialog
@@ -108,13 +108,14 @@ export default function ProjectsView() {
       )}
 
       {projects !== null && projects.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2" data-section-id="apps-list">
           {projects.map((p) => (
             <Card key={p.id} className="p-4 flex items-start justify-between gap-4">
               <button
                 type="button"
                 onClick={() => setDetailsId(p.id)}
                 className="flex flex-col gap-1 min-w-0 text-left hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                data-umami-event="app-card-clicked"
               >
                 <div className="text-sm font-medium">{p.name}</div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -126,11 +127,11 @@ export default function ProjectsView() {
                 </div>
               </button>
               <div className="flex items-center gap-1 shrink-0">
-                <Button size="sm" variant="outline" onClick={() => handleRotate(p)} title="Rotate key">
+                <Button size="sm" variant="outline" onClick={() => handleRotate(p)} title="Rotate key" data-umami-event="app-key-rotated">
                   <KeyRound size={14} /> Rotate
                 </Button>
                 <AlertDialog>
-                  <AlertDialogTrigger render={<Button size="sm" variant="outline" title="Delete app" />}>
+                  <AlertDialogTrigger render={<Button size="sm" variant="outline" title="Delete app" data-umami-event="app-delete-opened" />}>
                     <Trash2 size={14} />
                   </AlertDialogTrigger>
                   <AlertDialogContent>
@@ -143,7 +144,7 @@ export default function ProjectsView() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleDelete(p)}>Delete</AlertDialogAction>
+                      <AlertDialogAction onClick={() => handleDelete(p)} data-umami-event="app-deleted">Delete</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
@@ -179,6 +180,7 @@ export default function ProjectsView() {
                 size="sm"
                 variant="outline"
                 onClick={() => copyToClipboard(newKey?.publicKey)}
+                data-umami-event="app-key-copied"
               >
                 <Copy size={14} />
               </Button>
@@ -193,6 +195,7 @@ export default function ProjectsView() {
                     size="sm"
                     variant="outline"
                     onClick={() => copyToClipboard(embedSnippet(newKey.publicKey))}
+                    data-umami-event="embed-snippet-copied"
                   >
                     <Copy size={14} /> Copy snippet
                   </Button>

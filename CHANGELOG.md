@@ -1,3 +1,7 @@
+3.21.0
+
+  Add dottie-analytics via build env (OSS-safe)
+
 3.20.1
 
   Exclude runtime data from Docker context

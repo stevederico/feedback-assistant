@@ -231,7 +231,7 @@ export default function SubmissionsView() {
                 <p className="text-xs text-muted-foreground text-left">
                   This is a preview — the key is masked. Open the app to copy your full widget key.
                 </p>
-                <Button onClick={() => navigate('/app/apps')}>Set up widget</Button>
+                <Button onClick={() => navigate('/app/apps')} data-umami-event="setup-widget-clicked">Set up widget</Button>
                 <ol className="text-xs text-muted-foreground text-left list-decimal pl-4 flex flex-col gap-1">
                   <li>Open the app in Apps to get the full widget key.</li>
                   <li>Paste the snippet before <code>&lt;/body&gt;</code> on your site.</li>
@@ -359,22 +359,22 @@ export default function SubmissionsView() {
 
               <DialogFooter className="flex-wrap gap-2">
                 {activeDetail.status !== 'read' && (
-                  <Button variant="outline" size="sm" onClick={() => updateStatus(activeDetail.id, 'read')}>
+                  <Button variant="outline" size="sm" onClick={() => updateStatus(activeDetail.id, 'read')} data-umami-event="submission-marked-read">
                     <MailOpen size={14} /> Mark read
                   </Button>
                 )}
                 {activeDetail.status !== 'new' && (
-                  <Button variant="outline" size="sm" onClick={() => updateStatus(activeDetail.id, 'new')}>
+                  <Button variant="outline" size="sm" onClick={() => updateStatus(activeDetail.id, 'new')} data-umami-event="submission-marked-new">
                     <Mail size={14} /> Mark new
                   </Button>
                 )}
                 {activeDetail.status !== 'archived' && (
-                  <Button variant="outline" size="sm" onClick={() => updateStatus(activeDetail.id, 'archived')}>
+                  <Button variant="outline" size="sm" onClick={() => updateStatus(activeDetail.id, 'archived')} data-umami-event="submission-archived">
                     <Archive size={14} /> Archive
                   </Button>
                 )}
                 <AlertDialog>
-                  <AlertDialogTrigger render={<Button variant="destructive" size="sm" />}>
+                  <AlertDialogTrigger render={<Button variant="destructive" size="sm" data-umami-event="submission-delete-opened" />}>
                     <Trash2 size={14} /> Delete
                   </AlertDialogTrigger>
                   <AlertDialogContent>
@@ -386,7 +386,7 @@ export default function SubmissionsView() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleDelete(activeDetail.id)}>Delete</AlertDialogAction>
+                      <AlertDialogAction onClick={() => handleDelete(activeDetail.id)} data-umami-event="submission-deleted">Delete</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
