@@ -35,6 +35,28 @@ pub fn utf16_len(s: &str) -> usize {
     s.chars().map(char::len_utf16).sum()
 }
 
+/// Truncate to at most `max` UTF-16 code units, matching `String.prototype.slice(0, max)`.
+///
+/// Stops on a Unicode scalar boundary so the result stays valid UTF-8. When
+/// `max` would split a surrogate pair, JavaScript keeps a lone surrogate; this
+/// omits that incomplete character (same as stopping one unit earlier).
+pub fn utf16_truncate(s: &str, max: usize) -> String {
+    if max == 0 {
+        return String::new();
+    }
+    let mut units = 0usize;
+    let mut end = 0usize;
+    for (i, ch) in s.char_indices() {
+        let u = ch.len_utf16();
+        if units + u > max {
+            break;
+        }
+        units += u;
+        end = i + ch.len_utf8();
+    }
+    s[..end].to_string()
+}
+
 /// Validate an email address.
 ///
 /// Encodes the same grammar as the Node regex:
@@ -168,5 +190,14 @@ mod tests {
         assert_eq!(utf16_len("🛹"), 2);
         assert!(validate_name(&"🛹".repeat(50)));
         assert!(!validate_name(&"🛹".repeat(51)));
+    }
+
+    #[test]
+    fn truncates_to_utf16_units_like_js_slice() {
+        assert_eq!(utf16_truncate("hello", 3), "hel");
+        assert_eq!(utf16_truncate("🛹x", 2), "🛹");
+        assert_eq!(utf16_truncate("🛹x", 3), "🛹x");
+        // Would split the surrogate pair at 1; keep nothing rather than a lone surrogate.
+        assert_eq!(utf16_truncate("🛹", 1), "");
     }
 }

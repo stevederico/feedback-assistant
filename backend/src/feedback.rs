@@ -16,6 +16,7 @@ use crate::http::{Request, Response};
 use crate::json::{self, Json};
 use crate::routes::{self, err_json, json_res, not_found};
 use crate::state::AppState;
+use crate::validation::{utf16_len, utf16_truncate};
 
 const MAX_MESSAGE_CHARS: usize = 5000;
 const IP_CAPACITY: f64 = 60.0;
@@ -91,8 +92,12 @@ pub fn list_apps(state: &AppState, req: &Request) -> Response {
         Ok(id) => id,
         Err(res) => return res,
     };
-    if let Err(res) = ensure_org(state, &user_id) {
-        return res;
+    match ensure_org(state, &user_id) {
+        Ok(None) => {
+            return json_res(200, &json::obj([("apps", Json::Arr(Vec::new()))]));
+        }
+        Ok(Some(_)) => {}
+        Err(res) => return res,
     }
     let rows = match state.pool.with(|db| {
         db.query(
@@ -127,7 +132,7 @@ pub fn create_app(state: &AppState, req: &Request) -> Response {
     let Some(name) = body.get_str("name").map(str::trim).filter(|s| !s.is_empty()) else {
         return err_json(400, "name required");
     };
-    if name.chars().count() > 200 {
+    if utf16_len(name) > 200 {
         return err_json(400, "name too long");
     }
     let allowed = body
@@ -189,8 +194,20 @@ pub fn list_org_submissions(state: &AppState, req: &Request) -> Response {
         Ok(id) => id,
         Err(res) => return res,
     };
-    if let Err(res) = ensure_org(state, &user_id) {
-        return res;
+    match ensure_org(state, &user_id) {
+        Ok(None) => {
+            return json_res(
+                200,
+                &json::obj([
+                    ("submissions", Json::Arr(Vec::new())),
+                    ("total", json::i(0)),
+                    ("limit", json::i(50)),
+                    ("offset", json::i(0)),
+                ]),
+            );
+        }
+        Ok(Some(_)) => {}
+        Err(res) => return res,
     }
     let mut where_sql = vec!["p.org_id = (SELECT org_id FROM Users WHERE _id = ?)".to_string()];
     let mut params = vec![Value::Text(user_id)];
@@ -228,8 +245,8 @@ pub fn ingest_submission(state: &AppState, req: &Request) -> Response {
     if message.is_empty() {
         return err_json(400, "message required");
     }
-    if message.chars().count() > MAX_MESSAGE_CHARS {
-        return err_json(400, &format!("message must be {MAX_MESSAGE_CHARS} characters or fewer"));
+    if utf16_len(message) > MAX_MESSAGE_CHARS {
+        return err_json(413, &format!("message must be {MAX_MESSAGE_CHARS} characters or fewer"));
     }
     let screenshot_id = match body.get_str("screenshotId") {
         Some(id) if !id.is_empty() => match screenshot_owned_by_app(state, id, &app_row.id) {
@@ -490,7 +507,7 @@ fn patch_app(state: &AppState, req: &Request, app_id: &str) -> Response {
     let mut params: Vec<Value> = Vec::new();
     if let Some(name) = body.get_str("name") {
         let name = name.trim();
-        if name.is_empty() || name.chars().count() > 200 {
+        if name.is_empty() || utf16_len(name) > 200 {
             return err_json(400, "invalid name");
         }
         sets.push("name = ?");
@@ -617,8 +634,12 @@ fn list_app_submissions(state: &AppState, req: &Request, app_id: &str) -> Respon
         Ok(id) => id,
         Err(res) => return res,
     };
-    if let Err(res) = ensure_org(state, &user_id) {
-        return res;
+    match ensure_org(state, &user_id) {
+        Ok(None) => {
+            return json_res(200, &json::obj([("submissions", Json::Arr(Vec::new()))]));
+        }
+        Ok(Some(_)) => {}
+        Err(res) => return res,
     }
     if !app_owned(state, app_id, &user_id) {
         return err_json(404, "Not found");
@@ -774,8 +795,12 @@ fn list_changelog(state: &AppState, req: &Request, app_id: &str) -> Response {
         Ok(id) => id,
         Err(res) => return res,
     };
-    if let Err(res) = ensure_org(state, &user_id) {
-        return res;
+    match ensure_org(state, &user_id) {
+        Ok(None) => {
+            return json_res(200, &json::obj([("changelog", Json::Arr(Vec::new()))]));
+        }
+        Ok(Some(_)) => {}
+        Err(res) => return res,
     }
     if !app_owned(state, app_id, &user_id) {
         return err_json(404, "Not found");
@@ -814,10 +839,10 @@ fn create_changelog(state: &AppState, req: &Request, app_id: &str) -> Response {
     let Some(title) = body.get_str("title").map(str::trim).filter(|s| !s.is_empty()) else {
         return err_json(400, "title required");
     };
-    if title.chars().count() > 200 {
+    if utf16_len(title) > 200 {
         return err_json(400, "title too long");
     }
-    let body_md = truncate_chars(body.get_str("body").unwrap_or(""), 50_000);
+    let body_md = utf16_truncate(body.get_str("body").unwrap_or(""), 50_000);
     let publish = body.get("publish").and_then(Json::as_bool) == Some(true);
     let id = match routes::generate_uuid() {
         Ok(id) => id,
@@ -897,7 +922,7 @@ fn patch_changelog(state: &AppState, req: &Request, id: &str) -> Response {
     let mut params: Vec<Value> = Vec::new();
     if let Some(title) = body.get_str("title") {
         let title = title.trim();
-        if title.is_empty() || title.chars().count() > 200 {
+        if title.is_empty() || utf16_len(title) > 200 {
             return err_json(400, "invalid title");
         }
         sets.push("title = ?");
@@ -905,7 +930,7 @@ fn patch_changelog(state: &AppState, req: &Request, id: &str) -> Response {
     }
     if let Some(text) = body.get_str("body") {
         sets.push("body_md = ?");
-        params.push(Value::Text(truncate_chars(text, 50_000)));
+        params.push(Value::Text(utf16_truncate(text, 50_000)));
     }
     if let Some(publish) = body.get("publish").and_then(Json::as_bool) {
         let published = if publish {
@@ -1456,7 +1481,7 @@ fn greeting_value(value: Option<&Json>) -> Value {
 /// `Some` only for a string or JSON null, matching the dashboard's PATCH rule.
 fn greeting_update(value: Option<&Json>) -> Option<Value> {
     match value {
-        Some(Json::Str(text)) => Some(Value::Text(truncate_chars(text, 500))),
+        Some(Json::Str(text)) => Some(Value::Text(utf16_truncate(text, 500))),
         Some(Json::Null) => Some(Value::Null),
         _ => None,
     }
@@ -1477,11 +1502,7 @@ fn json_budget(value: &Json) -> Option<i64> {
 fn truncate_field(value: Option<&Json>, max: usize) -> Option<String> {
     value
         .and_then(Json::as_str)
-        .map(|text| truncate_chars(text, max))
-}
-
-fn truncate_chars(text: &str, max: usize) -> String {
-    text.chars().take(max).collect()
+        .map(|text| utf16_truncate(text, max))
 }
 
 fn segment_ok(seg: &str) -> bool {
@@ -2091,6 +2112,231 @@ mod tests {
         cookie_only.set_test_header("cookie", &cookie);
         let res = handle(&state, cookie_only);
         assert_eq!(res.status, 403, "{}", String::from_utf8_lossy(&res.body));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn oversized_message_is_413_not_400() {
+        let (state, dir) = open_state();
+        let ada = signup(&state, "msg413@example.com");
+        let created = authed(&state, &ada, "POST", "/api/apps", r#"{"name":"Len"}"#);
+        assert_eq!(created.status, 201, "{}", String::from_utf8_lossy(&created.body));
+        let key = body_of(&created).get_str("publicKey").unwrap().to_string();
+
+        let long = "a".repeat(MAX_MESSAGE_CHARS + 1);
+        let mut req = Request::for_test("POST", "/v1/submissions");
+        req.peer_ip = "msg-413".into();
+        req.set_test_header("x-project-key", &key);
+        req.set_test_header("content-type", "application/json");
+        req.set_test_body(format!(r#"{{"message":"{long}"}}"#).into_bytes());
+        let res = handle(&state, req);
+        assert_eq!(res.status, 413, "must not be 400: {}", String::from_utf8_lossy(&res.body));
+        assert_eq!(
+            body_of(&res).get_str("error"),
+            Some("message must be 5000 characters or fewer")
+        );
+
+        // Astral characters are 2 UTF-16 units each — 2501 skateboards exceed 5000.
+        let astral = "🛹".repeat(2501);
+        assert_eq!(utf16_len(&astral), 5002);
+        let mut req2 = Request::for_test("POST", "/v1/submissions");
+        req2.peer_ip = "msg-413b".into();
+        req2.set_test_header("x-project-key", &key);
+        req2.set_test_header("content-type", "application/json");
+        req2.set_test_body(format!(r#"{{"message":"{astral}"}}"#).into_bytes());
+        let res2 = handle(&state, req2);
+        assert_eq!(res2.status, 413, "{}", String::from_utf8_lossy(&res2.body));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn widget_rejects_bad_key_origin_and_screenshot_types() {
+        let (state, dir) = open_state();
+        let ada = signup(&state, "widget-errs@example.com");
+        let created = authed(
+            &state,
+            &ada,
+            "POST",
+            "/api/apps",
+            r#"{"name":"Gate","allowedOrigins":"https://ok.example"}"#,
+        );
+        let key = body_of(&created).get_str("publicKey").unwrap().to_string();
+
+        let mut missing = Request::for_test("POST", "/v1/submissions");
+        missing.peer_ip = "w-miss".into();
+        missing.set_test_header("content-type", "application/json");
+        missing.set_test_body(br#"{"message":"hi"}"#.to_vec());
+        let no_key = handle(&state, missing);
+        assert_eq!(no_key.status, 401);
+        assert_eq!(
+            body_of(&no_key).get_str("error"),
+            Some("invalid or missing X-Project-Key")
+        );
+
+        let mut bad_origin = Request::for_test("POST", "/v1/submissions");
+        bad_origin.peer_ip = "w-orig".into();
+        bad_origin.set_test_header("x-project-key", &key);
+        bad_origin.set_test_header("origin", "https://evil.example");
+        bad_origin.set_test_header("content-type", "application/json");
+        bad_origin.set_test_body(br#"{"message":"hi"}"#.to_vec());
+        let blocked = handle(&state, bad_origin);
+        assert_eq!(blocked.status, 403);
+        assert_eq!(body_of(&blocked).get_str("error"), Some("origin not allowed"));
+
+        let gif = b"------B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.gif\"\r\nContent-Type: image/gif\r\n\r\nGIF89a\r\n------B--\r\n";
+        let mut mime = Request::for_test("POST", "/v1/screenshots");
+        mime.peer_ip = "w-mime".into();
+        mime.set_test_header("x-project-key", &key);
+        mime.set_test_header("origin", "https://ok.example");
+        mime.set_test_header("content-type", "multipart/form-data; boundary=----B");
+        mime.set_test_body(gif.to_vec());
+        let bad_mime = handle(&state, mime);
+        assert_eq!(bad_mime.status, 415);
+
+        let mut no_file = Request::for_test("POST", "/v1/screenshots");
+        no_file.peer_ip = "w-nofile".into();
+        no_file.set_test_header("x-project-key", &key);
+        no_file.set_test_header("origin", "https://ok.example");
+        no_file.set_test_header("content-type", "multipart/form-data; boundary=----B");
+        no_file.set_test_body(b"------B\r\nContent-Disposition: form-data; name=\"other\"\r\n\r\nx\r\n------B--\r\n".to_vec());
+        let missing_file = handle(&state, no_file);
+        assert_eq!(missing_file.status, 400);
+        assert_eq!(body_of(&missing_file).get_str("error"), Some("file field required"));
+
+        let mut bad_mp = Request::for_test("POST", "/v1/screenshots");
+        bad_mp.peer_ip = "w-badmp".into();
+        bad_mp.set_test_header("x-project-key", &key);
+        bad_mp.set_test_header("origin", "https://ok.example");
+        // Multipart Content-Type without a boundary is rejected as invalid body.
+        bad_mp.set_test_header("content-type", "multipart/form-data");
+        bad_mp.set_test_body(b"------B\r\nnot-a-part\r\n------B--\r\n".to_vec());
+        let invalid_mp = handle(&state, bad_mp);
+        assert_eq!(invalid_mp.status, 400);
+        assert_eq!(body_of(&invalid_mp).get_str("error"), Some("invalid multipart body"));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn signup_returns_org_id_and_no_org_lists_are_empty() {
+        let (state, dir) = open_state();
+        let ada = signup(&state, "orguser@example.com");
+        let org_id = body_of(&ada).get_str("orgId").unwrap().to_string();
+        assert!(!org_id.is_empty());
+
+        let user_id = body_of(&ada).get_str("id").unwrap().to_string();
+        // Drop the user row so ensure_org returns Ok(None) while the JWT still verifies.
+        state
+            .pool
+            .with(|db| {
+                db.run("DELETE FROM Users WHERE _id = ?", &[Value::Text(user_id)])?;
+                Ok(())
+            })
+            .unwrap();
+
+        let changelog = authed(&state, &ada, "GET", "/api/apps/any-id/changelog", "");
+        assert_eq!(changelog.status, 200, "{}", String::from_utf8_lossy(&changelog.body));
+        assert_eq!(
+            body_of(&changelog)
+                .get("changelog")
+                .and_then(Json::as_arr)
+                .map(|a| a.len()),
+            Some(0)
+        );
+
+        let subs = authed(&state, &ada, "GET", "/api/apps/any-id/submissions", "");
+        assert_eq!(subs.status, 200, "{}", String::from_utf8_lossy(&subs.body));
+        assert_eq!(
+            body_of(&subs)
+                .get("submissions")
+                .and_then(Json::as_arr)
+                .map(|a| a.len()),
+            Some(0)
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn screenshot_forbidden_and_file_missing() {
+        let (state, dir) = open_state();
+        let ada = signup(&state, "shot-own@example.com");
+        let created = authed(&state, &ada, "POST", "/api/apps", r#"{"name":"Shots"}"#);
+        let key = body_of(&created).get_str("publicKey").unwrap().to_string();
+
+        let raw = b"------B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.png\"\r\nContent-Type: image/png\r\n\r\n\x89PNG\r\n------B--\r\n";
+        let mut up = Request::for_test("POST", "/v1/screenshots");
+        up.peer_ip = "shot-own-1".into();
+        up.set_test_header("x-project-key", &key);
+        up.set_test_header("content-type", "multipart/form-data; boundary=----B");
+        up.set_test_body(raw.to_vec());
+        let uploaded = handle(&state, up);
+        assert_eq!(uploaded.status, 200);
+        let shot = body_of(&uploaded).get_str("screenshotId").unwrap().to_string();
+
+        let bob = signup(&state, "shot-bob@example.com");
+        let denied = authed(&state, &bob, "GET", &format!("/api/screenshots/{shot}"), "");
+        assert_eq!(denied.status, 403);
+        assert_eq!(body_of(&denied).get_str("error"), Some("Forbidden"));
+
+        std::fs::remove_file(uploads_dir(&state).join(&shot)).ok();
+        let missing = authed(&state, &ada, "GET", &format!("/api/screenshots/{shot}"), "");
+        assert_eq!(missing.status, 404);
+        assert_eq!(body_of(&missing).get_str("error"), Some("File missing"));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn delete_app_unlinks_screenshot_files() {
+        let (state, dir) = open_state();
+        let ada = signup(&state, "unlink@example.com");
+        let created = authed(&state, &ada, "POST", "/api/apps", r#"{"name":"Gone"}"#);
+        let app_id = body_of(&created).get_str("id").unwrap().to_string();
+        let key = body_of(&created).get_str("publicKey").unwrap().to_string();
+
+        let raw = b"------B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.png\"\r\nContent-Type: image/png\r\n\r\n\x89PNG\r\n------B--\r\n";
+        let mut up = Request::for_test("POST", "/v1/screenshots");
+        up.peer_ip = "unlink-1".into();
+        up.set_test_header("x-project-key", &key);
+        up.set_test_header("content-type", "multipart/form-data; boundary=----B");
+        up.set_test_body(raw.to_vec());
+        let uploaded = handle(&state, up);
+        let shot = body_of(&uploaded).get_str("screenshotId").unwrap().to_string();
+        let path = uploads_dir(&state).join(&shot);
+        assert!(path.is_file());
+
+        let deleted = authed(&state, &ada, "DELETE", &format!("/api/apps/{app_id}"), "");
+        assert_eq!(deleted.status, 200, "{}", String::from_utf8_lossy(&deleted.body));
+        assert!(!path.exists());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn dashboard_invalid_json_and_name_errors() {
+        let (state, dir) = open_state();
+        let ada = signup(&state, "jsonerr@example.com");
+        let bad = authed(&state, &ada, "POST", "/api/apps", "not-json");
+        assert_eq!(bad.status, 400);
+        assert_eq!(body_of(&bad).get_str("error"), Some("Invalid JSON"));
+
+        let no_name = authed(&state, &ada, "POST", "/api/apps", r#"{}"#);
+        assert_eq!(no_name.status, 400);
+        assert_eq!(body_of(&no_name).get_str("error"), Some("name required"));
+
+        let long_name = "n".repeat(201);
+        let too_long = authed(
+            &state,
+            &ada,
+            "POST",
+            "/api/apps",
+            &format!(r#"{{"name":"{long_name}"}}"#),
+        );
+        assert_eq!(too_long.status, 400);
+        assert_eq!(body_of(&too_long).get_str("error"), Some("name too long"));
+
         std::fs::remove_dir_all(&dir).ok();
     }
 }

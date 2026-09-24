@@ -1,3 +1,10 @@
+3.23.0
+
+  Fix submission 413
+  Match UTF-16 lengths
+  Empty no-org lists
+  Add parity tests
+
 3.22.0
 
   Migrate skateboard 5.6
