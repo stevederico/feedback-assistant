@@ -1,3 +1,10 @@
+3.22.0
+
+  Migrate skateboard 5.6
+  Replace Hono backend
+  Port feedback routes
+  Pin skateboard-ui 5.1.0
+
 3.21.1
 
   Default public analytics script URL

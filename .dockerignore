@@ -16,25 +16,31 @@ npm-debug.log*
 .vscode/
 .idea/
 
-# Environment (never bake secrets; packaging tools dereference real files)
+# Environment — never bake secrets (symlinks to shared secret files are the classic leak)
 .env
 .env.*
 **/.env
 **/.env.*
-
-# Runtime data — local SQLite + screenshots must not enter the image
-backend/databases/
-**/*.db
-**/*.db-shm
-**/*.db-wal
+!**/.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
 
 # Build artifacts
 dist/
 build/
+backend/coverage/
+backend/target/
+
+# Local data — never bake into railway up images
+backend/databases/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+uploads/
+**/uploads/
 
 # Misc
 *.md
 *.log
 .DS_Store
-.claude/
-.agent-browser/

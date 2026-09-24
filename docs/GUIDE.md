@@ -12,13 +12,13 @@ Product overview and quick start: root [README.md](../README.md).
 
 # Architecture
 
-Monorepo on **Skateboard** (application shell): dashboard SPA, Hono API, embeddable widget.
+Monorepo on **Skateboard** (application shell): dashboard SPA, zero-crate Rust API, embeddable widget.
 
 ## System diagram
 
 ```
 ┌─────────────────────┐     cookie + CSRF      ┌──────────────────────────┐
-│  Dashboard SPA      │ ─────────────────────► │  Hono server (:8000)     │
+│  Dashboard SPA      │ ─────────────────────► │  Rust server (:8000)     │
 │  React 19 + Vite    │ ◄───────────────────── │                          │
 │  skateboard-ui      │        /api/*          │  ┌─ auth + Stripe        │
 │  routes: apps,      │                        │  ├─ feedback-dashboard  │
@@ -42,14 +42,9 @@ feedback-assistant/
 │   ├── components/         # ProjectsView, SubmissionsView, ChangelogView, …
 │   └── util/               # api helpers, embed snippet, types
 ├── backend/
-│   ├── server.ts           # Hono entry: auth, mount APIs, widget assets
-│   ├── feedback-schema.ts  # DDL bootstrap
-│   ├── feedback-dashboard-api.ts
-│   ├── widget-api.ts
-│   ├── feedback-rate-limit.ts
-│   ├── feedback-uploads.ts
-│   ├── feedback-origin.ts
-│   ├── adapters/           # sqlite | postgres | mongodb
+│   ├── src/routes.rs       # Auth, Stripe, dispatch
+│   ├── src/feedback.rs     # Dashboard + widget routes
+│   ├── src/db.rs           # SQLite schema, including feedback tables
 │   └── databases/          # runtime volume (gitignored data)
 ├── widget/                 # Vanilla JS embed (separate Vite build)
 │   ├── src/index.js
@@ -57,7 +52,7 @@ feedback-assistant/
 └── docs/GUIDE.md
 ```
 
-Workspaces: root (dashboard), `backend`, `widget`. `npm run start` runs all three; `npm run prod` builds dashboard + widget.
+Workspaces: root (dashboard) and `widget`. `npm run start` runs the dashboard and widget dev servers. The API is `cd backend && cargo run`. `npm run prod` builds the dashboard and the widget.
 
 ## Application shell (dashboard)
 
@@ -77,12 +72,10 @@ Default route: `apps`. `CommandMenu` overlays the shell layout (Cmd+K).
 
 | Module | Responsibility |
 |--------|----------------|
-| `server.ts` | JWT/CSRF/auth routes, Stripe, health, static SPA, mounts below |
-| `feedback-schema.ts` | Idempotent feedback DDL on startup |
-| `feedback-dashboard-api.ts` | Org-scoped CRUD under `/api` |
-| `widget-api.ts` | Public ingest under `/v1` |
-| `feedback-rate-limit.ts` | IP bucket + daily budget |
-| `feedback-uploads.ts` | Screenshot files on disk |
+| `routes.rs` | JWT/CSRF/auth routes, Stripe, health, static SPA, dispatch |
+| `db.rs` | Idempotent schema, including feedback tables and org link |
+| `feedback.rs` | Org-scoped dashboard CRUD and `/v1` widget ingest |
+| uploads | Screenshot files under `databases/uploads` |
 | `feedback-origin.ts` | CSV allowlist parse + match |
 | `adapters/*` | DB provider selection |
 
@@ -144,16 +137,16 @@ Embed:
 
 | Mode | What runs |
 |------|-----------|
-| Dev | Vite :5173 (proxy/CORS to API), Hono :8000, widget Vite HMR |
-| Prod | Single Node process serves API + widget JS + dashboard static from `dist/` |
+| Dev | Vite :5173, Rust API :8000 (`cargo run`), widget Vite HMR |
+| Prod | One Rust process serves API + widget JS + dashboard static from `dist/` |
 
-Production image: multi-stage `Dockerfile` (Node 24), copies `dist/`, `widget/dist/`, `backend/`. Persist `backend/databases`.
+Production image: multi-stage `Dockerfile` (Node build, Rust build, Debian runtime). Persist `backend/databases`.
 
 ---
 
 # API
 
-Two surfaces on the same Hono server:
+Two surfaces on the same Rust server:
 
 | Surface | Prefix | Auth | Use |
 |---------|--------|------|-----|
@@ -682,11 +675,12 @@ Production: mount a **persistent volume** on `backend/databases` (DB + uploads).
 
 # Deployment
 
-Ship the dashboard, API, and widget as **one Node process**. Build artifacts are static files served by Hono.
+Ship the dashboard, API, and widget as **one container**. The Rust process serves the built dashboard, the widget bundle, and the API.
 
 ## Prerequisites
 
-- Node.js ≥ 24
+- Node.js ≥ 24 (dashboard and widget build)
+- Rust 1.95 with system `libsqlite3` and `libcurl` (API)
 - Persistent disk for SQLite + screenshot uploads
 - Domain / TLS terminator in front of port 8000 (or your platform's port)
 
@@ -737,7 +731,7 @@ Outputs:
 
 ```bash
 cd backend
-node server.ts
+cargo run
 ```
 
 Or use the container (see below). Health check: `GET /api/health` → `{ "status": "ok", … }`.
@@ -761,8 +755,9 @@ Without a volume, restarts wipe data. Default upload path is `./databases/upload
 
 `Dockerfile` multi-stage:
 
-1. **builder** — `npm install`, `npm run build`
-2. **runtime** — Node 24 alpine, copies `dist/`, `widget/dist/`, `package.json`, `backend/`; `CMD ["node", "server.ts"]` with `WORKDIR /app/backend`
+1. **frontend** — `npm ci`, `npm run build` (dashboard + widget)
+2. **backend** — `cargo build --release --locked`
+3. **runtime** — Debian slim with `libsqlite3` and `libcurl`, copies `dist/`, `widget/dist/`, `package.json`, and `skateboard-backend`
 
 ```bash
 docker build -t feedback-assistant .
@@ -841,12 +836,11 @@ This repo tracks:
 1. Compare `skateboardVersion` to [stevederico/skateboard](https://github.com/stevederico/skateboard) releases
 2. Bump UI: install the target `@stevederico/skateboard-ui` version (repo uses exact pins)
 3. Diff boilerplate files carefully — **do not** overwrite app-specific code
-4. Run `npm run verify:ui` / full `npm run test`
+4. Run `npm run verify:ui`, `npm run test`, and `cargo test --locked` in `backend/`
 
 ### Safe to review from boilerplate
 
-- `backend/server.ts` security/auth changes (merge, don't replace feedback mounts)
-- `backend/adapters/*`
+- `backend/src/*` security/auth changes (keep feedback routes in `feedback.rs`)
 - `vite.config.ts`, theme CSS imports
 
 ### Never auto-overwrite

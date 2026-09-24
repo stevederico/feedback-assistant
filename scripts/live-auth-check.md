@@ -5,7 +5,7 @@ Unit tests cover bcrypt → scrypt and JWT cookies. This runbook exercises a **r
 ## Prerequisites
 
 - `backend/.env` has a real `JWT_SECRET`
-- Backend running: `npm run server` (default `http://localhost:8000`)
+- Backend running: `cd backend && cargo run` (default `http://localhost:8000`)
 
 ## 1. Scrypt path (signup → me)
 

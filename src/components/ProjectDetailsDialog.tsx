@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, KeyRound, Save } from '@stevederico/skateboard-ui/icons';
+import { Copy, KeyRound, Save } from 'lucide-react';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
 import { Label } from '@stevederico/skateboard-ui/shadcn/ui/label';

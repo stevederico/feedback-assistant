@@ -1,27 +1,18 @@
-FROM node:24-alpine AS builder
-
-RUN apk add --no-cache python3 make g++
+FROM node:24-bookworm-slim AS frontend
 
 WORKDIR /app
-
-COPY package*.json ./
-COPY backend/package*.json ./backend/
-# Widget workspace package.json must be present so its build deps (html2canvas,
-# vendored into widget/dist) install with the root workspace install.
-COPY widget/package*.json ./widget/
-
-RUN npm install && cd backend && npm install
-
+COPY package.json package-lock.json ./
+COPY widget/package.json ./widget/
+RUN npm ci --ignore-scripts
 COPY . .
+RUN if find /app \( -name '.env' -o -name '.env.*' \) ! -name '.env.example' -print -quit | grep -q .; then \
+      echo 'FATAL: .env file present in Docker build context — aborting'; \
+      find /app \( -name '.env' -o -name '.env.*' \) ! -name '.env.example' -print; \
+      exit 1; \
+    fi
 
-# Public site identity (optional). Railway injects service variables into the
-# build environment; defaults stay in src/constants.json for OSS clones.
-#   COMPANY_WEBSITE=your.domain.com
-#   COMPANY_EMAIL=support@your.domain.com
-# Analytics (optional, OSS-safe — never bake secrets into the public git tree):
-#   VITE_ANALYTICS_SRC=https://api.dottie.ai/script.js
-#   VITE_ANALYTICS_ID=<dottie site write_key>
-#   VITE_ANALYTICS_DOMAINS=your.production.domain
+# Public site identity and optional analytics. Railway injects these into the
+# build. Defaults stay in src/constants.json for OSS clones.
 ARG COMPANY_WEBSITE
 ARG COMPANY_EMAIL
 ARG VITE_COMPANY_WEBSITE
@@ -41,33 +32,39 @@ ENV COMPANY_WEBSITE=$COMPANY_WEBSITE \
 
 RUN npm run build
 
-FROM node:24-alpine
+FROM rust:bookworm AS backend
 
-RUN apk add --no-cache libstdc++
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libsqlite3-dev libcurl4-openssl-dev pkg-config ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY backend/rust-toolchain.toml backend/Cargo.toml backend/Cargo.lock ./
+COPY backend/src ./src
+RUN cargo build --release --locked
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libsqlite3-0 libcurl4 ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
-ENV NODE_ENV=production
-
-COPY --from=builder /app/dist ./dist
-# Widget bundle served at /widget/v<version>.js — must ship in the runtime image.
-COPY --from=builder /app/widget/dist ./widget/dist
-# Root package.json: server reads it at /app/package.json to derive the widget version.
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/backend ./backend
-
-RUN apk add --no-cache --virtual .build-deps python3 make g++ \
-    && cd backend && npm install --omit=dev \
-    && apk del .build-deps
+COPY --from=frontend /app/dist ./dist
+COPY --from=frontend /app/widget/dist ./widget/dist
+COPY --from=frontend /app/package.json ./package.json
+COPY --from=backend /build/target/release/skateboard-backend /usr/local/bin/skateboard-backend
+COPY backend/config.json ./backend/config.json
 
 # Run as root: the Railway volume mounts at /app/backend/databases owned by
-# root and masks any build-time chown, so a non-root USER cannot create the
-# SQLite file. Root can write the volume; matches the known-working config.
+# root and masks any build-time chown, so a non-root user cannot create the
+# SQLite file.
+RUN mkdir -p /app/backend/databases
 
+ENV NODE_ENV=production
+ENV SKATEBOARD_BACKEND_DIR=/app/backend
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:8000/api/health', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+    CMD curl -fsS http://127.0.0.1:8000/api/health >/dev/null || exit 1
 
-WORKDIR /app/backend
-CMD ["node", "server.ts"]
+CMD ["skateboard-backend"]

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router';
-import { Search, Archive, Mail, MailOpen, Trash2, ExternalLink, Image as ImageIcon, Inbox } from '@stevederico/skateboard-ui/icons';
+import { useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
+import { Search, Archive, Mail, MailOpen, Trash2, ExternalLink, Image as ImageIcon, Inbox } from 'lucide-react';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
 import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
@@ -69,7 +69,7 @@ const STATUS_BADGE: Record<SubmissionStatus, BadgeVariant> = {
 };
 
 export default function SubmissionsView() {
-  const navigate = useNavigate();
+  const navigate = useSafeNavigate();
   const { projects, current, currentId, setCurrentId, loading } = useCurrentProject();
 
   // Local filter so "All projects" does not pollute Changelog's shared selection.
