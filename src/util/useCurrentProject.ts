@@ -4,7 +4,7 @@
 // Updating selection writes both URL + localStorage so reloads + shares both work.
 
 import { useEffect, useState, useCallback } from 'react';
-import { useSearchParams } from 'react-router';
+import { useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
 import { faApi } from './api';
 import type { Project } from './types';
 
@@ -28,15 +28,31 @@ export interface CurrentProjectState {
   loading: boolean;
 }
 
+/** Read `?project=` from the current location. */
+function projectFromLocation(): string | null {
+  if (typeof window === 'undefined') return null;
+  return new URLSearchParams(window.location.search).get('project');
+}
+
 /**
  * Resolve and persist the "current project" selection for project-scoped views.
  *
  * @returns Current project state plus selection/refetch helpers
  */
 export function useCurrentProject(): CurrentProjectState {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useSafeNavigate();
+  const [urlProject, setUrlProject] = useState<string | null>(projectFromLocation);
   const [projects, setProjects] = useState<Project[] | null>(null); // null = loading
   const [error, setError] = useState<unknown>(null);
+
+  useEffect(() => {
+    /** Keep the selection aligned when the browser back button changes the query. */
+    function handlePopState() {
+      setUrlProject(projectFromLocation());
+    }
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Load projects once.
   useEffect(() => {
@@ -48,7 +64,7 @@ export function useCurrentProject(): CurrentProjectState {
   }, []);
 
   // Resolve current id with URL > localStorage > first project fallback.
-  const urlId = searchParams.get('project');
+  const urlId = urlProject;
   const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
   let currentId: string | null = urlId || stored || null;
   if (projects && currentId && !projects.find((p) => p.id === currentId)) {
@@ -60,10 +76,12 @@ export function useCurrentProject(): CurrentProjectState {
 
   const setCurrentId = useCallback((id: string) => {
     try { localStorage.setItem(STORAGE_KEY, id); } catch { /* ignore */ }
-    const next = new URLSearchParams(searchParams);
+    setUrlProject(id);
+    const next = new URLSearchParams(window.location.search);
     next.set('project', id);
-    setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+    const query = next.toString();
+    navigate(`${window.location.pathname}${query ? `?${query}` : ''}`, { replace: true });
+  }, [navigate]);
 
   const refetch = useCallback(() => {
     return faApi.listProjects().then((res) => {

@@ -3,7 +3,7 @@
 //
 // apiRequest already handles cookies, CSRF header, 30s timeout, and 401 redirect.
 
-import { apiRequest, getBackendURL } from '@stevederico/skateboard-ui/Utilities';
+import { apiRequest, getBackendURL, getCSRFToken } from '@stevederico/skateboard-ui/Utilities';
 import type { ApiRequestOptions } from '@stevederico/skateboard-ui/Utilities';
 import type {
   App,
@@ -36,9 +36,20 @@ interface ChangelogInput {
  * @param path - Endpoint path under /api (leading slash)
  * @param opts - Fetch options forwarded to apiRequest
  * @returns Parsed JSON response of the caller-declared shape
+ *
+ * State-changing methods attach `X-CSRF-Token` from {@link getCSRFToken}.
  */
 function call<T = unknown>(path: string, opts: ApiRequestOptions = {}): Promise<T> {
-  return apiRequest<T>(path, opts);
+  const method = (opts.method ?? 'GET').toUpperCase();
+  if (method === 'GET' || method === 'HEAD') {
+    return apiRequest<T>(path, opts);
+  }
+  // apiRequest also attaches this token. Set it here so every mutation in
+  // this module sends the session CSRF cookie value explicitly.
+  const token = getCSRFToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['X-CSRF-Token'] = token;
+  return apiRequest<T>(path, { ...opts, headers });
 }
 
 export const faApi = {

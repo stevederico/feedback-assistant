@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react';
-import { Plus, Eye, EyeOff, Trash2, Pencil } from '@stevederico/skateboard-ui/icons';
+import { Plus, Eye, EyeOff, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
 import { Label } from '@stevederico/skateboard-ui/shadcn/ui/label';

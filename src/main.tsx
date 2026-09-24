@@ -90,5 +90,8 @@ createSkateboardApp({
   appRoutes,
   defaultRoute: 'apps',
   wrapper: AppWrapper,
-  overrides: { layout: AppLayout }
+  overrides: { layout: AppLayout },
+  // Legal bodies also remain in constants.json as a fallback. This load keeps
+  // the same text available to the shell's lazy legal routes.
+  loadLegal: () => import('./legal.json'),
 });

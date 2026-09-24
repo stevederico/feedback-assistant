@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router';
 import { getState } from '@stevederico/skateboard-ui/Context';
+import { useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
+import { Folder, Inbox, List, MessageSquare, type LucideIcon } from 'lucide-react';
 import {
   Command,
   CommandDialog,
@@ -9,9 +10,26 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandItem,
-  CommandShortcut,
 } from '@stevederico/skateboard-ui/shadcn/ui/command';
-import DynamicIcon from '@stevederico/skateboard-ui/DynamicIcon';
+
+/** Named Lucide icons used by constants.json page entries. */
+const PAGE_ICONS: Record<string, LucideIcon> = {
+  folder: Folder,
+  inbox: Inbox,
+  list: List,
+  'message-square': MessageSquare,
+};
+
+/**
+ * Render a page icon from the small set stored in constants.json.
+ *
+ * @param name - Lucide name string from constants (`folder`, `inbox`, `list`)
+ * @returns The matching icon, or Folder when the name is unknown
+ */
+function PageIcon({ name }: { name: string }) {
+  const Icon = PAGE_ICONS[name] ?? Folder;
+  return <Icon size={16} className="shrink-0 text-muted-foreground" aria-hidden="true" />;
+}
 
 /** Page entry from constants.json's pages array. */
 interface PageEntry {
@@ -39,7 +57,7 @@ interface PageEntry {
  */
 export default function CommandMenu() {
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
+  const navigate = useSafeNavigate();
   const { state } = getState();
   const pages: PageEntry[] = state.constants?.pages || [];
 
@@ -92,7 +110,7 @@ export default function CommandMenu() {
                 data-umami-event="command-nav"
                 data-umami-event-page={page.url}
               >
-                <DynamicIcon name={page.icon} size={16} className="shrink-0 text-muted-foreground" />
+                <PageIcon name={page.icon} />
                 <span>{page.title}</span>
               </CommandItem>
             ))}

@@ -24,7 +24,7 @@ bun run start      # or: npm run start
 This runs three processes at once:
 
 - **Dashboard** (Vite) → `http://localhost:5173`
-- **Backend** (Hono) → `http://localhost:8000`
+- **Backend** (Rust) → `http://localhost:8000`
 - **Widget** dev server (Vite)
 
 Create `backend/.env` with at least a signing secret before signing in:
@@ -141,13 +141,13 @@ STRIPE_ENDPOINT_SECRET=whsec_...
 |------------|---------|---------|
 | **React** | 19 | Dashboard UI |
 | **Vite** | 7 | Build tool & dev server |
-| **Hono** | 4 | Backend server |
+| **Rust** | zero-crate | Backend server |
 | **Tailwind CSS** | 4 | Styling |
 | **skateboard-ui** | 4.14 | Application shell, shadcn components, theming |
 | **React Router** | 7 | Routing |
 | **node:sqlite** | built-in | Default database (Postgres & MongoDB adapters included) |
 | **html2canvas** | 1.4 | Widget screenshots |
-| **TypeScript** | strict | Dashboard & backend |
+| **TypeScript** | strict | Dashboard |
 | **Node.js** | ≥ 24 | Runtime |
 
 <br />
@@ -157,7 +157,7 @@ STRIPE_ENDPOINT_SECRET=whsec_...
 A **monorepo** with three parts:
 
 1. **Dashboard** (`src/`) — a React SPA built on Skateboard's application-shell pattern; the shell handles routing, auth, and layout, and `src/main.tsx` just registers the Apps, Submissions, and Changelog views.
-2. **Backend** (`backend/`) — a Hono server that bootstraps its own SQLite schema (`Orgs`, `Projects`, `Submissions`, `Screenshots`, `Changelog`, `DailyIngest`) on top of Skateboard's auth tables. It exposes two API surfaces:
+2. **Backend** (`backend/`) — a zero-crate Rust server. SQLite schema (`Orgs`, `Apps`, `Submissions`, `Screenshots`, `Changelog`, `DailyIngest`) sits on Skateboard's auth tables. Two API surfaces:
    - **Dashboard API** under `/api/*` — cookie session + CSRF, org-scoped CRUD.
    - **Widget ingest** under `/v1/*` — public, keyed by `X-Project-Key`, wide-open CORS, per-IP rate limit and per-project daily budget.
 3. **Widget** (`widget/`) — a dependency-free vanilla-JS bundle, built with Vite and served from the backend at a versioned `/widget/v<version>.js` URL.
@@ -192,7 +192,7 @@ bun install
 bun run start
 ```
 
-Run `npm run test` before opening a PR — it typechecks and runs the backend, frontend, and build test suites.
+Run `npm run test` and `cd backend && cargo test --locked` before opening a PR.
 
 <br />
 
@@ -206,7 +206,7 @@ Run `npm run test` before opening a PR — it typechecks and runs the backend, f
 ## 🙏 Acknowledgements
 
 - [React](https://react.dev) — UI library
-- [Hono](https://hono.dev) — backend framework
+- [Rust](https://www.rust-lang.org) — backend
 - [Vite](https://vitejs.dev) — build tool & dev server
 - [Tailwind CSS](https://tailwindcss.com) — utility-first CSS
 - [html2canvas](https://html2canvas.hertzen.com) — client-side screenshots
