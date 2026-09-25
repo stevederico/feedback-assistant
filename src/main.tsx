@@ -25,16 +25,12 @@ import CommandMenu from './components/CommandMenu';
 import AnalyticsProvider from './components/AnalyticsProvider';
 import baseConstants from './constants.json';
 import { applyPublicConfigOverrides } from './util/publicConfig';
-import { loadAnalytics } from './util/loadAnalytics';
 import ProjectsView from './components/ProjectsView';
 import SubmissionsView from './components/SubmissionsView';
 import ChangelogView from './components/ChangelogView';
 
 /** constants.json defaults + COMPANY_* / FRONTEND_URL overrides from the build env. */
 const constants = applyPublicConfigOverrides(baseConstants);
-
-// OSS: only loads when VITE_ANALYTICS_SRC + VITE_ANALYTICS_ID are set at build time
-loadAnalytics();
 
 /**
  * App layout with global command menu overlay.

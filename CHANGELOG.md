@@ -1,3 +1,7 @@
+3.24.0
+
+  Drop dottie-analytics
+
 3.23.0
 
   Fix submission 413
