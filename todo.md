@@ -5,6 +5,15 @@ Order = priority (top first within each section).
 
 ---
 
+## Retirement (2026-10-17, ACTIVE)
+
+This service is being retired into dottie-analytics (`POST /api/feedback`, `/feedback.js`). Full status and remaining steps live in the dottie-analytics `todo.md` ("Feedback-assistant migration"). Do not add features here.
+
+- [x] Data exported (DB + sha256) to the local backups folder. 1 registered app, 1 submission ever, 0 Stripe subscriptions
+- [x] The one registered app (BXCare) moved to the dottie-analytics widget and verified live
+- [ ] Keep this service and its proxy hosts running through the watch window (to 2026-10-31); any new `/v1/submissions` hit means a missed embed
+- [ ] Then: proxy 410/301, stripe-proxy route + price, backup script, docs, decommission (each needs its own approval)
+
 ## P0 — Correctness & security (do next)
 
 - [x] Enforce per-app origin allowlist on `/v1` (empty = any; non-empty enforces; `*.domain` supported)

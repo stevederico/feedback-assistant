@@ -1,3 +1,7 @@
+3.25.0
+
+  Add retirement todo
+
 3.24.0
 
   Drop dottie-analytics
