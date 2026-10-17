@@ -9,10 +9,12 @@ Order = priority (top first within each section).
 
 This service is being retired into dottie-analytics (`POST /api/feedback`, `/feedback.js`). Full status and remaining steps live in the dottie-analytics `todo.md` ("Feedback-assistant migration"). Do not add features here.
 
-- [x] Data exported (DB + sha256) to the local backups folder. 1 registered app, 1 submission ever, 0 Stripe subscriptions
+- [x] Data exported (DB + sha256) to the local backups folder. 1 registered app, 1 submission ever (a test, not imported by decision; it stays in the backup), 0 Stripe subscriptions
 - [x] The one registered app (BXCare) moved to the dottie-analytics widget and verified live
-- [ ] Keep this service and its proxy hosts running through the watch window (to 2026-10-31); any new `/v1/submissions` hit means a missed embed
-- [ ] Then: proxy 410/301, stripe-proxy route + price, backup script, docs, decommission (each needs its own approval)
+- [x] Compat shim: the proxy now sends this service's widget URLs (`/widget.js`, `/widget/*`) and `/v1/*` API to dottie-analytics, which maps old app keys to sites. These paths no longer reach this service
+- [x] Paid plan retired: Dottie Pro includes feedback. The `feedback_unlimited_monthly` stripe-proxy route is removed and the Stripe price + product are archived
+- [ ] Keep this service running through the watch window (to 2026-10-31); any request here that is not the shim means a missed caller
+- [ ] Then, each with its own approval: proxy the rest of both hostnames away, drop the backup entry, update docs, stop and remove the service, archive this repo
 
 ## P0 — Correctness & security (do next)
 
