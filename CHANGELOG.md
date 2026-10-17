@@ -1,3 +1,7 @@
+3.27.0
+
+  Mark hostnames retired
+
 3.26.0
 
   Update retirement todo

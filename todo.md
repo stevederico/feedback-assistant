@@ -13,8 +13,8 @@ This service is being retired into dottie-analytics (`POST /api/feedback`, `/fee
 - [x] The one registered app (BXCare) moved to the dottie-analytics widget and verified live
 - [x] Compat shim: the proxy now sends this service's widget URLs (`/widget.js`, `/widget/*`) and `/v1/*` API to dottie-analytics, which maps old app keys to sites. These paths no longer reach this service
 - [x] Paid plan retired: Dottie Pro includes feedback. The `feedback_unlimited_monthly` stripe-proxy route is removed and the Stripe price + product are archived
-- [ ] Keep this service running through the watch window (to 2026-10-31); any request here that is not the shim means a missed caller
-- [ ] Then, each with its own approval: proxy the rest of both hostnames away, drop the backup entry, update docs, stop and remove the service, archive this repo
+- [x] 2026-10-17: both hostnames now 301 to dottie.ai except the compat shim (dottie-proxy 2.177.0). This service receives no traffic; it is still running until Steve approves stopping it
+- [ ] Then, each with its own approval: drop the backup entry, update docs, stop and remove the service, archive this repo
 
 ## P0 — Correctness & security (do next)
 
