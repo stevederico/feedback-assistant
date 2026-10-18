@@ -1,3 +1,7 @@
+3.28.0
+
+  Record repo archive
+
 3.27.0
 
   Mark hostnames retired

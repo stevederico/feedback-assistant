@@ -5,7 +5,7 @@ Order = priority (top first within each section).
 
 ---
 
-## Retirement (2026-10-17, ACTIVE)
+## Retirement (2026-10-17, repo archived 2026-10-18)
 
 This service is being retired into dottie-analytics (`POST /api/feedback`, `/feedback.js`). Full status and remaining steps live in the dottie-analytics `todo.md` ("Feedback-assistant migration"). Do not add features here.
 
@@ -14,7 +14,8 @@ This service is being retired into dottie-analytics (`POST /api/feedback`, `/fee
 - [x] Compat shim: the proxy now sends this service's widget URLs (`/widget.js`, `/widget/*`) and `/v1/*` API to dottie-analytics, which maps old app keys to sites. These paths no longer reach this service
 - [x] Paid plan retired: Dottie Pro includes feedback. The `feedback_unlimited_monthly` stripe-proxy route is removed and the Stripe price + product are archived
 - [x] 2026-10-17: both hostnames now 301 to dottie.ai except the compat shim (dottie-proxy 2.177.0). This service receives no traffic; it is still running until Steve approves stopping it
-- [ ] Then, each with its own approval: drop the backup entry, update docs, stop and remove the service, archive this repo
+- [ ] **Left (needs Steve's Railway approval that turn):** stop the `feedback-assistant` Railway service, then remove the service + volume. It **still runs** (no traffic)
+- [x] 2026-10-18 (Steve's OK): backup entry dropped (fleet-scripts 1.28.0), docs updated (stevederico README, fleet dashboard, brain refs), Search Console watchlist cleared (dottie-landing 2.15.0), this repo archived on GitHub (read-only from here; this is the last commit)
 
 ## P0 — Correctness & security (do next)
 
