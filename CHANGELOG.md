@@ -1,3 +1,8 @@
+3.29.0
+
+  Remove analytics tracker
+  Remove analytics env
+
 3.28.0
 
   Record repo archive

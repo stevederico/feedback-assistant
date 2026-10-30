@@ -17,12 +17,10 @@
  * @see {@link https://github.com/stevederico/skateboard|Skateboard Docs}
  */
 import './assets/styles.css';
-import type { ReactNode } from 'react';
 import { createSkateboardApp } from '@stevederico/skateboard-ui/App';
 import type { AppRoute } from '@stevederico/skateboard-ui/App';
 import Layout from '@stevederico/skateboard-ui/Layout';
 import CommandMenu from './components/CommandMenu';
-import AnalyticsProvider from './components/AnalyticsProvider';
 import baseConstants from './constants.json';
 import { applyPublicConfigOverrides } from './util/publicConfig';
 import ProjectsView from './components/ProjectsView';
@@ -47,11 +45,6 @@ function AppLayout() {
       <Layout />
     </>
   );
-}
-
-/** App root wrapper — analytics + children. */
-function AppWrapper({ children }: { children?: ReactNode }) {
-  return <AnalyticsProvider>{children}</AnalyticsProvider>;
 }
 
 /**
@@ -85,7 +78,6 @@ createSkateboardApp({
   constants,
   appRoutes,
   defaultRoute: 'apps',
-  wrapper: AppWrapper,
   overrides: { layout: AppLayout },
   // Legal bodies also remain in constants.json as a fallback. This load keeps
   // the same text available to the shell's lazy legal routes.

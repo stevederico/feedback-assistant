@@ -107,8 +107,6 @@ export default function CommandMenu() {
                 value={page.title}
                 onSelect={() => handleSelect(page.url)}
                 className="gap-3 px-3 py-2.5"
-                data-umami-event="command-nav"
-                data-umami-event-page={page.url}
               >
                 <PageIcon name={page.icon} />
                 <span>{page.title}</span>

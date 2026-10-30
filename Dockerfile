@@ -11,24 +11,18 @@ RUN if find /app \( -name '.env' -o -name '.env.*' \) ! -name '.env.example' -pr
       exit 1; \
     fi
 
-# Public site identity and optional analytics. Railway injects these into the
+# Public site identity. Railway injects these into the
 # build. Defaults stay in src/constants.json for OSS clones.
 ARG COMPANY_WEBSITE
 ARG COMPANY_EMAIL
 ARG VITE_COMPANY_WEBSITE
 ARG VITE_COMPANY_EMAIL
 ARG FRONTEND_URL
-ARG VITE_ANALYTICS_SRC
-ARG VITE_ANALYTICS_ID
-ARG VITE_ANALYTICS_DOMAINS
 ENV COMPANY_WEBSITE=$COMPANY_WEBSITE \
     COMPANY_EMAIL=$COMPANY_EMAIL \
     VITE_COMPANY_WEBSITE=$VITE_COMPANY_WEBSITE \
     VITE_COMPANY_EMAIL=$VITE_COMPANY_EMAIL \
-    FRONTEND_URL=$FRONTEND_URL \
-    VITE_ANALYTICS_SRC=$VITE_ANALYTICS_SRC \
-    VITE_ANALYTICS_ID=$VITE_ANALYTICS_ID \
-    VITE_ANALYTICS_DOMAINS=$VITE_ANALYTICS_DOMAINS
+    FRONTEND_URL=$FRONTEND_URL
 
 RUN npm run build
 
