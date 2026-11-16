@@ -1,18 +1,18 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react';
-import { Plus, Eye, EyeOff, Trash2, Pencil } from 'lucide-react';
-import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
-import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
-import { Label } from '@stevederico/skateboard-ui/shadcn/ui/label';
-import { Textarea } from '@stevederico/skateboard-ui/shadcn/ui/textarea';
-import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
-import { Card } from '@stevederico/skateboard-ui/shadcn/ui/card';
+import { Plus, Eye, EyeOff, Trash2, Pencil } from '@stevederico/skateboard-ui/icons';
+import { Button } from '@stevederico/skateboard-ui/ui/button';
+import { Input } from '@stevederico/skateboard-ui/ui/input';
+import { Label } from '@stevederico/skateboard-ui/ui/label';
+import { Textarea } from '@stevederico/skateboard-ui/ui/textarea';
+import { Badge } from '@stevederico/skateboard-ui/ui/badge';
+import { Card } from '@stevederico/skateboard-ui/ui/card';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
-} from '@stevederico/skateboard-ui/shadcn/ui/dialog';
+} from '@stevederico/skateboard-ui/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@stevederico/skateboard-ui/shadcn/ui/alert-dialog';
+} from '@stevederico/skateboard-ui/ui/alert-dialog';
 import Header from '@stevederico/skateboard-ui/Header';
 import { faApi } from '../util/api';
 import { useCurrentProject } from '../util/useCurrentProject';

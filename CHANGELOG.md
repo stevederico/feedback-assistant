@@ -1,3 +1,14 @@
+3.30.0
+
+  Bump skateboard-ui 5.19.0
+  Icons from skateboard-ui
+  Router from skateboard-ui
+  Rewrite shadcn imports
+  Plain CSS
+  Drop Tailwind
+  Drop lucide-react
+  Drop react-router
+
 3.29.0
 
   Remove analytics tracker

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Copy, KeyRound, Save } from 'lucide-react';
-import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
-import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
-import { Label } from '@stevederico/skateboard-ui/shadcn/ui/label';
-import { Textarea } from '@stevederico/skateboard-ui/shadcn/ui/textarea';
+import { Copy, KeyRound, Save } from '@stevederico/skateboard-ui/icons';
+import { Button } from '@stevederico/skateboard-ui/ui/button';
+import { Input } from '@stevederico/skateboard-ui/ui/input';
+import { Label } from '@stevederico/skateboard-ui/ui/label';
+import { Textarea } from '@stevederico/skateboard-ui/ui/textarea';
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
-} from '@stevederico/skateboard-ui/shadcn/ui/dialog';
+} from '@stevederico/skateboard-ui/ui/dialog';
 import { faApi } from '../util/api';
 import { embedSnippet } from '../util/embed';
 import { copyToClipboard } from '../util/clipboard';

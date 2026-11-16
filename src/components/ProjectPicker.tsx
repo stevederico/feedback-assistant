@@ -4,7 +4,7 @@
 
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@stevederico/skateboard-ui/shadcn/ui/select';
+} from '@stevederico/skateboard-ui/ui/select';
 import type { Project } from '../util/types';
 
 /** Sentinel value for the org-wide "All apps" inbox filter. */

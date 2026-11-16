@@ -1,5 +1,4 @@
 import { defineConfig } from 'vite';
-import tailwindcss from '@tailwindcss/vite';
 import path from 'node:path';
 import {
   customLoggerPlugin,
@@ -15,7 +14,6 @@ export default defineConfig({
   // Expose COMPANY_WEBSITE / COMPANY_EMAIL (and VITE_*) to the client bundle.
   envPrefix: ['VITE_', 'COMPANY_'],
   plugins: [
-    tailwindcss(),
     customLoggerPlugin(),
     htmlReplacePlugin(),
     dynamicRobotsPlugin(),
@@ -25,8 +23,7 @@ export default defineConfig({
   // JSX comes from tsconfig ("jsx": "react-jsx") via Vite's own transform — no
   // @vitejs/plugin-react-swc, so edits trigger a full reload instead of Fast Refresh.
   resolve: {
-    // react-router resolves through skateboard-ui; dedupe keeps one copy if an app adds it.
-    dedupe: ['react', 'react-dom', 'react-router'],
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@': path.resolve(process.cwd(), './src')
     }
@@ -35,7 +32,7 @@ export default defineConfig({
     // skateboard-ui is excluded from prebundling, so its raw imports resolve straight to
     // these packages — every one it reaches for must be pre-converted to ESM, including
     // react/jsx-runtime (its compiled JSX imports it and React ships CJS).
-    include: ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime', 'react-router'],
+    include: ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime'],
     // skateboard-ui ships pre-built ESM; the native/CSS toolchain must never be prebundled.
     exclude: ['@stevederico/skateboard-ui', 'lightningcss', 'fsevents']
   },

@@ -1,17 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Plus, Copy, KeyRound, Trash2 } from 'lucide-react';
-import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
-import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
-import { Label } from '@stevederico/skateboard-ui/shadcn/ui/label';
-import { Textarea } from '@stevederico/skateboard-ui/shadcn/ui/textarea';
+import { Plus, Copy, KeyRound, Trash2 } from '@stevederico/skateboard-ui/icons';
+import { Button } from '@stevederico/skateboard-ui/ui/button';
+import { Input } from '@stevederico/skateboard-ui/ui/input';
+import { Label } from '@stevederico/skateboard-ui/ui/label';
+import { Textarea } from '@stevederico/skateboard-ui/ui/textarea';
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
-} from '@stevederico/skateboard-ui/shadcn/ui/dialog';
+} from '@stevederico/skateboard-ui/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@stevederico/skateboard-ui/shadcn/ui/alert-dialog';
-import { Card } from '@stevederico/skateboard-ui/shadcn/ui/card';
+} from '@stevederico/skateboard-ui/ui/alert-dialog';
+import { Card } from '@stevederico/skateboard-ui/ui/card';
 import Header from '@stevederico/skateboard-ui/Header';
 import { faApi } from '../util/api';
 import { embedSnippet } from '../util/embed';

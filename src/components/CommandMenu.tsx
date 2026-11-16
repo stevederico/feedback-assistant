@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getState } from '@stevederico/skateboard-ui/Context';
 import { useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
-import { Folder, Inbox, List, MessageSquare, type LucideIcon } from 'lucide-react';
+import { Folder, Inbox, List, MessageSquare, type LucideIcon } from '@stevederico/skateboard-ui/icons';
 import {
   Command,
   CommandDialog,
@@ -10,7 +10,7 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandItem,
-} from '@stevederico/skateboard-ui/shadcn/ui/command';
+} from '@stevederico/skateboard-ui/ui/command';
 
 /** Named Lucide icons used by constants.json page entries. */
 const PAGE_ICONS: Record<string, LucideIcon> = {

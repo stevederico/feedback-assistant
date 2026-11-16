@@ -1,23 +1,23 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
-import { Search, Archive, Mail, MailOpen, Trash2, ExternalLink, Image as ImageIcon, Inbox } from 'lucide-react';
-import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
-import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
-import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
-import { Card } from '@stevederico/skateboard-ui/shadcn/ui/card';
+import { Search, Archive, Mail, MailOpen, Trash2, ExternalLink, Image as ImageIcon, Inbox } from '@stevederico/skateboard-ui/icons';
+import { Button } from '@stevederico/skateboard-ui/ui/button';
+import { Input } from '@stevederico/skateboard-ui/ui/input';
+import { Badge } from '@stevederico/skateboard-ui/ui/badge';
+import { Card } from '@stevederico/skateboard-ui/ui/card';
 import {
   Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription,
-} from '@stevederico/skateboard-ui/shadcn/ui/empty';
+} from '@stevederico/skateboard-ui/ui/empty';
 import {
   Tabs, TabsList, TabsTrigger,
-} from '@stevederico/skateboard-ui/shadcn/ui/tabs';
+} from '@stevederico/skateboard-ui/ui/tabs';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from '@stevederico/skateboard-ui/shadcn/ui/dialog';
+} from '@stevederico/skateboard-ui/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@stevederico/skateboard-ui/shadcn/ui/alert-dialog';
+} from '@stevederico/skateboard-ui/ui/alert-dialog';
 import Header from '@stevederico/skateboard-ui/Header';
 import { faApi, screenshotUrl } from '../util/api';
 import { embedSnippet } from '../util/embed';
